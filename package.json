@@ -1,0 +1,31 @@
+{
+  "name": "agent-canvas",
+  "version": "0.1.0",
+  "description": "An agent-operated canvas for making short videos with Grok Build and Codex. Agents drive it from the CLI; humans review and steer in the browser.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "canvas": "./bin/canvas.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "canvas": "node --import tsx src/cli.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.3"
+  },
+  "keywords": [
+    "ai",
+    "video",
+    "canvas",
+    "grok",
+    "codex",
+    "agents"
+  ]
+}
