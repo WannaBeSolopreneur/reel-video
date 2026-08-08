@@ -4,7 +4,11 @@
 
 An open source, agent-operated canvas for stills and short clips. Your agent scaffolds the board and scenes. You review in the browser, fix the prompts that missed, and generate what is worth generating.
 
-**Auth is CLI login** (`grok login`, optional `codex login`) · **media stays on your machine** · **zero runtime dependencies** beyond Node 20+
+### Runs on the subscriptions you already pay for
+
+Generation goes through **Grok Build** and (optionally) **Codex** via CLI login — not a separate Reel Video meter, not a second API key bill, and not another token top-up for this tool. If you already use those products, media runs on that access. This repo stays free and local (MIT).
+
+**Auth is CLI login** (`grok login`, optional `codex login`) · **no extra token bill from Reel Video** · **media stays on your machine** · **zero runtime dependencies** beyond Node 20+
 
 <p align="center">
   <a href="#quick-start"><strong>Get started</strong></a>
@@ -54,7 +58,21 @@ An open source, agent-operated canvas for stills and short clips. Your agent sca
 
 ## Why this exists
 
-Most AI video tools are a chat box and a hope. You get one clip, style drifts on the next, and nothing is reviewable in a PR.
+Most AI video tools are a chat box and a hope. You get one clip, style drifts on the next, nothing is reviewable in a PR — and you often pay a **new** usage meter on top of tools you already subscribe to.
+
+Reel Video is different on cost and on structure.
+
+### Cost model
+
+| | Reel Video | Typical “AI video SaaS” |
+|---|---|---|
+| **How you pay** | Your existing **Grok Build** / **Codex** subscription (CLI login) | Separate product bill + its own token or credit meter |
+| **This tool** | Free, open source (MIT). No Reel Video API keys, no token top-ups here | Hosted meter, waitlists, per-generation charges |
+| **Where media lives** | Local `canvas/assets/` | Their cloud |
+
+Images via **Grok** or **Codex**. Video via Grok **`reference_to_video`**. Plan limits still apply on those providers — Reel Video just does not add a second bill.
+
+### Project model
 
 Reel Video treats a short as a **project file**:
 
@@ -64,8 +82,6 @@ Reel Video treats a short as a **project file**:
 | **Scenes** (~6s beats) with first / mid / last frames | A single vague “animate this” |
 | Video locked to those three stills | Style drift every generation |
 | A local review UI + JSON the agent can edit | Opaque cloud projects |
-
-Images via **Grok** or **Codex**. Video via Grok **`reference_to_video`**.
 
 ---
 
@@ -126,6 +142,7 @@ npm run canvas -- scene add --name "Opening beat" --panels 1-4 --provider codex 
 
 ## What you can do
 
+- **No extra token bill from this tool** — uses Grok Build and Codex subscriptions you already have; login once, generate without a Reel Video meter  
 - **Storyboard → scenes → video** as a first-class workflow, not a prompt recipe you reinvent every time  
 - **Style lock** — scene frames and continuations take the board (or prior stills) as refs  
 - **Human review** — node-style board in the browser; edit prompts, pick Grok vs Codex per image  
