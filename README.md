@@ -1,41 +1,46 @@
 # Reel Video
 
-**Ship short AI videos from a storyboard — not a pile of loose prompts.**
+**Storyboard to short video on the Grok and Codex plans you already pay for.**
 
 An open source, agent-operated canvas for stills and short clips. Your agent scaffolds the board and scenes. You review in the browser, fix the prompts that missed, and generate what is worth generating.
 
-### Runs on the subscriptions you already pay for
-
-Generation goes through **Grok Build** and (optionally) **Codex** via CLI login — not a separate Reel Video meter, not a second API key bill, and not another token top-up for this tool. If you already use those products, media runs on that access. This repo stays free and local (MIT).
-
-**Auth is CLI login** (`grok login`, optional `codex login`) · **no extra token bill from Reel Video** · **media stays on your machine** · **zero runtime dependencies** beyond Node 20+
+No Reel Video API keys. No second token meter. Auth is CLI login (`grok login`, optional `codex login`). Media stays on your machine. Zero runtime dependencies beyond Node 20+.
 
 <p align="center">
   <a href="#quick-start"><strong>Get started</strong></a>
   &nbsp;·&nbsp;
+  <a href="#you-say">You say</a>
+  &nbsp;·&nbsp;
   <a href="#how-it-works">How it works</a>
   &nbsp;·&nbsp;
   <a href="#for-agents">For agents</a>
+  &nbsp;·&nbsp;
+  <a href="#compare">Compare</a>
   &nbsp;·&nbsp;
   <a href="docs/zdr.md">Video &amp; privacy</a>
   &nbsp;·&nbsp;
   <a href="LICENSE">MIT</a>
 </p>
 
+<p align="center">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" />
+  <img alt="node" src="https://img.shields.io/badge/node-%3E%3D20-green.svg?style=flat-square" />
+  <img alt="grok" src="https://img.shields.io/badge/images%20%2B%20video-Grok%20Build-111.svg?style=flat-square" />
+  <img alt="codex" src="https://img.shields.io/badge/stills-Codex%20optional-6b6.svg?style=flat-square" />
+</p>
+
 ---
 
 <!--
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║  HERO EXAMPLE — drop your demo here                              ║
-  ║                                                                  ║
-  ║  Put a short clip, GIF, or board screenshot in docs/media/ and   ║
-  ║  uncomment one of the blocks below.                              ║
-  ║                                                                  ║
-  ║  Suggested files:                                                ║
-  ║    docs/media/hero.gif      — looping board → video              ║
-  ║    docs/media/hero.mp4      — (GitHub won’t autoplay mp4 well)   ║
-  ║    docs/media/hero.png      — UI or storyboard still             ║
-  ╚══════════════════════════════════════════════════════════════════╝
+  HERO EXAMPLE: drop your demo here
+
+  Put a short clip, GIF, or board screenshot in docs/media/ and
+  uncomment one of the blocks below.
+
+  Suggested files:
+    docs/media/hero.gif   looping board → frames → video
+    docs/media/hero.png   UI or storyboard still
+    docs/media/hero.mp4   keep as source; GitHub will not autoplay well
 -->
 
 <!-- Uncomment when ready:
@@ -51,44 +56,58 @@ Generation goes through **Grok Build** and (optionally) **Codex** via CLI login 
 -->
 
 <p align="center">
-  <sub>↑ Hero slot reserved — add <code>docs/media/hero.gif</code> (or <code>.png</code>) and uncomment the block above.</sub>
+  <sub>↑ Hero slot reserved. Add <code>docs/media/hero.gif</code> (or <code>.png</code>) and uncomment the block above.</sub>
 </p>
 
 ---
 
-## Why this exists
+## Why
 
-Most AI video tools are a chat box and a hope. You get one clip, style drifts on the next, nothing is reviewable in a PR — and you often pay a **new** usage meter on top of tools you already subscribe to.
+Most AI video tools are a chat box and a hope. You get one clip, style drifts on the next, nothing is reviewable in a PR, and you often pay a **new** usage meter on top of tools you already subscribe to.
 
 Reel Video is different on cost and on structure.
 
 ### Cost model
 
-| | Reel Video | Typical “AI video SaaS” |
-|---|---|---|
-| **How you pay** | Your existing **Grok Build** / **Codex** subscription (CLI login) | Separate product bill + its own token or credit meter |
-| **This tool** | Free, open source (MIT). No Reel Video API keys, no token top-ups here | Hosted meter, waitlists, per-generation charges |
-| **Where media lives** | Local `canvas/assets/` | Their cloud |
+| | Reel Video | Typical AI video SaaS | Multi-key agent studios |
+|---|---|---|---|
+| **How you pay** | Existing **Grok Build** and optional **Codex** subscription (CLI login) | Separate product bill and its own credits | Many provider API keys, each metered |
+| **This tool** | Free, open source (MIT). No Reel Video token top-ups | Hosted meter, waitlists, per-generation charges | Free shell, paid generation elsewhere |
+| **Where media lives** | Local `canvas/assets/` | Their cloud | Local or mixed |
 
-Images via **Grok** or **Codex**. Video via Grok **`reference_to_video`**. Plan limits still apply on those providers — Reel Video just does not add a second bill.
+Images via **Grok** or **Codex**. Video via Grok **`reference_to_video`**. Provider plan limits still apply. Reel Video does not add a second bill.
 
 ### Project model
-
-Reel Video treats a short as a **project file**:
 
 | You get | Instead of |
 |---|---|
 | One **storyboard** as the visual bible | Random one-off stills |
-| **Scenes** (~6s beats) with first / mid / last frames | A single vague “animate this” |
+| **Scenes** (~6s beats) with first / mid / last frames | A single vague "animate this" |
 | Video locked to those three stills | Style drift every generation |
 | A local review UI + JSON the agent can edit | Opaque cloud projects |
+
+---
+
+## You say
+
+Plain language in, structured project out. Typical agent or human prompts:
+
+| You say… | What happens |
+|---|---|
+| *"8-panel Pixar short about a cat who trips on a scooter"* | `init` → multi-panel storyboard shot → set as storyboard |
+| *"Scene 1 is panels 1-4, three keyframes then a 6s clip"* | `scene add` scaffolds first / mid / last + video, refs the board |
+| *"Open the review board"* | `canvas serve` → browser at `:4180` |
+| *"Regenerate only the middle frame"* | Edit prompt in UI or `set` + `run --shot …` |
+| *"Next scene, same look"* | Another `scene add` with the same storyboard refs |
+
+Prefer **serve first** and generate in the browser. Only run full generation from the agent when you ask for it.
 
 ---
 
 ## How it works
 
 ```
-Storyboard          one multi-panel still — characters, style, full plot
+Storyboard          one multi-panel still: characters, style, full plot
    └── Scene        one ~6 second chapter of the story
          ├── first frame
          ├── middle frame     full-frame stills, style-locked to the board
@@ -96,11 +115,35 @@ Storyboard          one multi-panel still — characters, style, full plot
          └── video            morphs first → mid → last (6s or 10s only)
 ```
 
-1. **Board** — one image, multi-panel grid (e.g. 8 panels). That is the look and the plot.
-2. **Scene** — three cinematic frames for one beat, always referenced to the board.
-3. **Video** — `reference_to_video` on those three stills. Longer stories = more scenes, not longer clips.
+1. **Board:** one image, multi-panel grid (e.g. 8 panels). That is the look and the plot.
+2. **Scene:** three cinematic frames for one beat, always referenced to the board.
+3. **Video:** `reference_to_video` on those three stills. Longer stories = more scenes, not longer clips.
 
 No node graph coordinates. A video points at its frames by id. The project file is something you can actually read in a diff.
+
+```
+  prompt / agent scaffolding
+        │
+        ▼
+  canvas/project.json     storyboardId + scenes + shots (reviewable in a PR)
+        │
+        ▼
+  stills (Grok or Codex)  storyboard, then first / mid / last with --refs
+        │
+        ▼
+  video (Grok)            reference_to_video([first, mid, last])
+        │
+        ▼
+  canvas/assets/          local media; gitignored
+```
+
+<!-- Optional product screenshot when you have one:
+
+<p align="center">
+  <img src="docs/media/ui.png" alt="Reel Video review board" width="900" />
+</p>
+
+-->
 
 ---
 
@@ -113,10 +156,10 @@ npm install
 grok login                       # required for images + video
 # optional: codex login          # alternate stills provider
 
-# once per account — interactive Grok TUI (not grok -p):
+# once per account: interactive Grok TUI (not grok -p):
 grok
 # /privacy  →  Coding data, retention, and training  →  Opt in
-# (needed for video on most personal accounts — see below)
+# needed for video on most personal accounts (details: docs/zdr.md)
 
 npm run canvas -- init "my short"
 npm run canvas -- serve          # → http://localhost:4180
@@ -132,7 +175,7 @@ npm run canvas -- add image --provider codex --aspect 16:9 --id img-1 \
 npm run canvas -- storyboard set img-1
 npm run canvas -- scene add --name "Opening beat" --panels 1-4 --provider codex --duration 6
 
-# open the UI and Generate — or, only if you asked the agent to run:
+# open the UI and Generate, or only if you asked the agent to run:
 # npm run canvas -- run
 ```
 
@@ -142,13 +185,13 @@ npm run canvas -- scene add --name "Opening beat" --panels 1-4 --provider codex 
 
 ## What you can do
 
-- **No extra token bill from this tool** — uses Grok Build and Codex subscriptions you already have; login once, generate without a Reel Video meter  
-- **Storyboard → scenes → video** as a first-class workflow, not a prompt recipe you reinvent every time  
-- **Style lock** — scene frames and continuations take the board (or prior stills) as refs  
-- **Human review** — node-style board in the browser; edit prompts, pick Grok vs Codex per image  
-- **Agent friendly** — every command accepts `--json`; exit codes are meaningful  
-- **Safe by default** — runner grants the model one media tool only (no shell, no web, no free filesystem)  
-- **Local assets** — files land in `canvas/assets/`; project state is `canvas/project.json`
+- **No extra token bill from this tool.** Grok Build and Codex subscriptions you already have; login once, generate without a Reel Video meter
+- **Storyboard → scenes → video** as a first-class workflow, not a prompt recipe you reinvent every time
+- **Style lock:** scene frames and continuations take the board (or prior stills) as refs
+- **Human review:** node-style board in the browser; edit prompts, pick Grok vs Codex per image
+- **Agent friendly:** every command accepts `--json`; exit codes are meaningful
+- **Safe by default:** runner grants the model one media tool only (no shell, no web, no free filesystem)
+- **Local assets:** files land in `canvas/assets/`; project state is `canvas/project.json`
 
 ---
 
@@ -172,20 +215,36 @@ canvas run --json
 
 Typical contribution: `init` → `add` / `scene add` → leave shots `pending` for the human (or `run` only if they asked) → commit `canvas/project.json`. Media is gitignored; the project file is the reviewable artifact.
 
-**Non-negotiables for agents**
+### Agent skill
 
-1. Serve the UI first; do not unprompted `canvas run` while the human is generating in the browser.  
-2. Never invent tunnels or public upload endpoints for ZDR. See [docs/zdr.md](docs/zdr.md).  
-3. Video duration is only **6** or **10** seconds. Longer story = another scene.  
-4. `reference_to_video` takes **images only** (2–7 stills), never prior `.mp4` files.
+Copy [`.grok/skills/reel-video/SKILL.md`](.grok/skills/reel-video/SKILL.md) into your agent skills directory (Grok, Claude, Codex, Cursor, etc.) so the agent discovers the workflow by progressive disclosure.
 
-Agent skill (copy into your agent skills dir): [`.grok/skills/reel-video/SKILL.md`](.grok/skills/reel-video/SKILL.md)
+### Non-negotiables
+
+1. Serve the UI first; do not unprompted `canvas run` while the human is generating in the browser.
+2. Never invent tunnels or public upload endpoints for ZDR. See [docs/zdr.md](docs/zdr.md).
+3. Video duration is only **6** or **10** seconds. Longer story = another scene.
+4. `reference_to_video` takes **images only** (2-7 stills), never prior `.mp4` files.
 
 ---
 
 ## For humans
 
-`canvas serve` opens a **node-style review board** — storyboard block, then each scene (first / mid / last + video). No client framework. Prompt edits are form POSTs. Progress refreshes only while a run is in flight. Asset URLs are content-addressed and immutable, so multi-megabyte stills decode once instead of on every re-render.
+`canvas serve` opens a **node-style review board:** storyboard block, then each scene (first / mid / last + video). No client framework. Prompt edits are form POSTs. Progress refreshes only while a run is in flight. Asset URLs are content-addressed and immutable, so multi-megabyte stills decode once instead of on every re-render.
+
+---
+
+## Compare
+
+| | Reel Video | Chat / one-shot video tools | Multi-key agent studios | Programmatic (Remotion, etc.) |
+|---|---|---|---|---|
+| **Driver** | Coding agent + local review UI | You in a chat box | Coding agent + many tools | You hand-write scenes |
+| **Artifact** | Diffable `canvas/project.json` | Ephemeral thread | Varies (often plan IR) | Source code |
+| **Shape** | Storyboard → scenes → 3 frames → clip | One prompt → one clip | Full production pipelines | Frame-accurate composition |
+| **Billing** | Grok / Codex subscriptions you already have | Product credits or API | Many BYO keys | Your infra only |
+| **Lock-in** | Local files, MIT | Hosted project | Local-first varies | Your repo |
+
+Use a **chat tool** for a single throwaway clip. Use a **big studio** when you need research, narration, stock, and multi-pipeline production. Use **Reel Video** when you want a tight storyboard-to-scene loop on Grok and Codex without standing up another account.
 
 ---
 
@@ -213,7 +272,7 @@ On team accounts only a **team admin** may change it. This lives on your xAI / G
 
 ### Team Zero Data Retention
 
-If the team has real ZDR (`is_zdr: true`), configure S3/R2 upload URLs in `~/.grok/config.toml` — full guide: **[docs/zdr.md](docs/zdr.md)**.
+If the team has real ZDR (`is_zdr: true`), configure S3/R2 upload URLs in `~/.grok/config.toml`. Full guide: **[docs/zdr.md](docs/zdr.md)**.
 
 | Situation | What to do |
 |---|---|
@@ -260,7 +319,7 @@ Re-running skips shots whose inputs have not changed. Editing a prompt marks the
 
 ## Safety
 
-The runner grants the model **exactly one tool per call** — `image_gen` or `reference_to_video` — with no web access, no terminal, and no permission bypass.
+The runner grants the model **exactly one tool per call** (`image_gen` or `reference_to_video`) with no web access, no terminal, and no permission bypass.
 
 Generated media is collected by our code from a session directory we choose. The model is never asked to place a file or open a port.
 
