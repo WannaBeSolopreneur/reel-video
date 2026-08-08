@@ -1,4 +1,4 @@
-# agent-canvas
+# Reel Video
 
 An agent-operated canvas for making short videos with **Grok Build**.
 

@@ -1,7 +1,7 @@
 {
-  "name": "agent-canvas",
+  "name": "reel-video",
   "version": "0.1.0",
-  "description": "An agent-operated canvas for making short videos with Grok Build and Codex. Agents drive it from the CLI; humans review and steer in the browser.",
+  "description": "Reel Video \u2014 agent-operated canvas for short videos with Grok Build and Codex",
   "license": "MIT",
   "type": "module",
   "bin": {
