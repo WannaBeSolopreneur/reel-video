@@ -32,11 +32,11 @@ No Reel Video API keys. No second token meter. Auth is CLI login (`grok login`, 
 ---
 
 <p align="center">
-  <img src="docs/media/hero.png" alt="Reel Video review UI with an 8-panel Pixar-style storyboard for a cat-in-the-fridge short" width="900" />
+  <img src="docs/media/hero.gif" alt="Reel Video: storyboard to scene frames to 6s clip, cat in the fridge short" width="720" />
 </p>
 
 <p align="center">
-  <em>Review board with a multi-panel storyboard (Codex stills). Scenes and video generate next, style-locked to the board.</em>
+  <em>Storyboard → first / mid / last frames → scene video. Pixar-style &quot;cat in the fridge&quot; short, generated on Grok + Codex.</em>
 </p>
 
 ---

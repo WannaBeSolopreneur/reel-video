@@ -2,8 +2,7 @@
 
 | File | Use |
 |---|---|
-| `hero.png` | Current README hero (review UI + storyboard example) |
-| `hero.gif` | Optional later: looping board → frames → video |
-| `ui.png` | Optional product screenshot under How it works |
+| `hero.gif` | Animated README hero (storyboard → frames → video) |
+| `hero.png` | Optional still poster / UI screenshot |
 
-Swap `hero.png` anytime, or add a GIF and point the README `<img>` at it.
+Built from `canvas/assets` of the cat-in-the-fridge demo: img-1 board, img-2/3/4 scene frames, vid-1 clip.
