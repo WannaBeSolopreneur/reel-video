@@ -36,8 +36,7 @@ No Reel Video API keys. No second token meter. Auth is CLI login (`grok login`, 
 </p>
 
 <p align="center">
-  <em>Storyboard → first / mid / last frames → scene video. Generated on Grok + Codex from:</em><br />
-  <em>&quot;I want to make a pixar short for a owner running looking for her cat and it was in the fridge the whole time&quot;</em>
+  <em>Prompt: &quot;I want to make a pixar short for a owner running looking for her cat and it was in the fridge the whole time&quot;</em>
 </p>
 
 <p align="center">
