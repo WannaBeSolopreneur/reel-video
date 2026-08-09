@@ -1,10 +1,10 @@
 # Reel Video
 
-**Storyboard to short video on the Grok and Codex plans you already pay for.**
+**Make short AI videos on the Grok and Codex plans you already pay for.**
 
-An open source, agent-operated canvas for stills and short clips. Your agent scaffolds the board and scenes. You review in the browser, fix the prompts that missed, and generate what is worth generating.
+No new subscription. No API keys. No second token bill. Just `grok login` (and optional `codex login`).
 
-No Reel Video API keys. No second token meter. Auth is CLI login (`grok login`, optional `codex login`). Media stays on your machine. Zero runtime dependencies beyond Node 20+.
+Agent scaffolds the storyboard and scenes. You review in the browser and generate what you want. Files stay on your machine.
 
 <p align="center">
   <a href="#quick-start"><strong>Get started</strong></a>
