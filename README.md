@@ -31,32 +31,12 @@ No Reel Video API keys. No second token meter. Auth is CLI login (`grok login`, 
 
 ---
 
-<!--
-  HERO EXAMPLE: drop your demo here
-
-  Put a short clip, GIF, or board screenshot in docs/media/ and
-  uncomment one of the blocks below.
-
-  Suggested files:
-    docs/media/hero.gif   looping board → frames → video
-    docs/media/hero.png   UI or storyboard still
-    docs/media/hero.mp4   keep as source; GitHub will not autoplay well
--->
-
-<!-- Uncomment when ready:
-
 <p align="center">
-  <img src="docs/media/hero.gif" alt="Reel Video: storyboard to scene video" width="900" />
+  <img src="docs/media/hero.png" alt="Reel Video review UI with an 8-panel Pixar-style storyboard for a cat-in-the-fridge short" width="900" />
 </p>
 
 <p align="center">
-  <em>Example: multi-panel storyboard → three scene frames → 6s clip</em>
-</p>
-
--->
-
-<p align="center">
-  <sub>↑ Hero slot reserved. Add <code>docs/media/hero.gif</code> (or <code>.png</code>) and uncomment the block above.</sub>
+  <em>Review board with a multi-panel storyboard (Codex stills). Scenes and video generate next, style-locked to the board.</em>
 </p>
 
 ---
