@@ -2,7 +2,8 @@
 
 | File | Use |
 |---|---|
-| `hero.gif` | Animated README hero (storyboard → frames → video) |
-| `hero.png` | Optional still poster / UI screenshot |
+| `hero.gif` | Animated hero: board → frames → video |
+| `ui.gif` | Review board UI demo under the hero |
+| `hero.png` / `ui.png` | Still frames / poster fallbacks |
 
-Built from `canvas/assets` of the cat-in-the-fridge demo: img-1 board, img-2/3/4 scene frames, vid-1 clip.
+`hero.gif` is built from `canvas/assets` (cat-in-the-fridge). `ui.gif` is a screen capture of `canvas serve`.

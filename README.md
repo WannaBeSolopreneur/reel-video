@@ -39,6 +39,14 @@ No Reel Video API keys. No second token meter. Auth is CLI login (`grok login`, 
   <em>Storyboard → first / mid / last frames → scene video. Pixar-style &quot;cat in the fridge&quot; short, generated on Grok + Codex.</em>
 </p>
 
+<p align="center">
+  <img src="docs/media/ui.gif" alt="Reel Video local review board with multi-panel storyboard node" width="900" />
+</p>
+
+<p align="center">
+  <em>Local review UI: storyboard node, scene groups, prompts, and Generate. Agent scaffolds; you approve and run.</em>
+</p>
+
 ---
 
 ## Why
