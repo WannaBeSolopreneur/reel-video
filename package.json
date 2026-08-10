@@ -30,10 +30,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Pablo-dev-uni/reel-video.git"
+    "url": "git+https://github.com/WannaBeSolopreneur/reel-video.git"
   },
-  "homepage": "https://github.com/Pablo-dev-uni/reel-video#readme",
+  "homepage": "https://github.com/WannaBeSolopreneur/reel-video#readme",
   "bugs": {
-    "url": "https://github.com/Pablo-dev-uni/reel-video/issues"
+    "url": "https://github.com/WannaBeSolopreneur/reel-video/issues"
   }
 }
