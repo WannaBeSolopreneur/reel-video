@@ -17,13 +17,22 @@ import {
   loadProject,
   removeShot,
   saveProject,
+  setCharacterLock,
+  setLocationLock,
   setStoryboard,
   shotHash,
   updateShot,
 } from "./project.ts";
 import { runProject, type RunEvent } from "./runner.ts";
 import { serve } from "./server.ts";
-import type { Aspect, ImageProvider, Project } from "./types.ts";
+import { stitchScenes } from "./stitch.ts";
+import type {
+  Aspect,
+  ImageProvider,
+  ImageRole,
+  Project,
+  VideoResolution,
+} from "./types.ts";
 
 /**
  * Load KEY=VALUE pairs from a dotenv file into process.env without overwriting
@@ -124,25 +133,31 @@ class UsageError extends Error {}
 const HELP = `agent-canvas — an agent-operated canvas for short videos
 
 Structure
-  storyboard (1 multi-panel image)
+  character lock + location lock   (generate first — visual bible)
     └── scene (~6s): first + middle + last frames → video
+          frames ref character + location; video prompt is action-only
 
 Usage
   canvas init [name]                          Create canvas/project.json
-  canvas storyboard set <image-id>            Mark image as master storyboard
-  canvas scene add --name <text>              Scaffold scene (3 frames + video)
-        [--panels 1-4] [--provider codex|grok]
-        [--duration 6|10] [--storyboard <id>]
+  canvas lock character <image-id>            Mark cast / character bible
+  canvas lock location <image-id>             Mark set / location bible
+  canvas storyboard set <image-id>            Optional multi-panel plot board
+  canvas scene add --name <text>              Scaffold scene (needs both locks)
+        [--panels notes] [--provider codex|grok]
+        [--duration 6|10] [--resolution 480p|720p]
   canvas add image --prompt <text>            Add a free image shot
         [--aspect 9:16|1:1|16:9|4:3|3:4]
         [--provider grok|codex] [--id <id>]
         [--refs img-1,img-2]
+        [--role character|location|storyboard]
   canvas add video --from <id> --prompt <t>   Add a free video shot
-        [--duration 6|10] [--id <id>] [--refs img-1]
+        [--duration 6|10] [--resolution 480p|720p]
+        [--id <id>] [--refs img-1]
   canvas set <id> --prompt <text>             Rewrite a prompt (marks it pending)
   canvas rm <id>                              Remove a shot
   canvas run [--shot <id>] [--force]          Generate pending shots
-  canvas status                               Show storyboard, scenes, shots
+  canvas stitch                               Concatenate ready scene videos (ffmpeg)
+  canvas status                               Show locks, scenes, shots
   canvas serve [--port 4180] [--no-open]      Human review UI
 
 Global
@@ -165,22 +180,34 @@ function printProject(project: Project, json: boolean): void {
   }
   console.log(`${project.name}  (${project.shots.length} shots · ${project.scenes.length} scenes)`);
   console.log(
-    `  storyboard: ${project.storyboardId ?? "(none — canvas storyboard set <img-id>)"}`,
+    `  character: ${project.characterLockId ?? "(none — canvas lock character <img-id>)"}`,
+  );
+  console.log(
+    `  location:  ${project.locationLockId ?? "(none — canvas lock location <img-id>)"}`,
+  );
+  console.log(
+    `  storyboard: ${project.storyboardId ?? "(optional)"}`,
   );
   for (const scene of project.scenes) {
-    const panels = scene.panels ? ` panels ${scene.panels}` : "";
+    const panels = scene.panels ? ` · ${scene.panels}` : "";
     console.log(`  ${scene.id}  ${scene.name}${panels}`);
+    if (scene.stripId) console.log(`    strip:  ${scene.stripId}`);
     console.log(
-      `    frames: ${scene.frames.first} → ${scene.frames.middle} → ${scene.frames.last}`,
+      `    crops:  ${scene.frames.first} → ${scene.frames.middle} → ${scene.frames.last}`,
     );
     console.log(`    video:  ${scene.videoId}`);
   }
   console.log("  shots:");
   for (const shot of project.shots) {
     let detail =
-      shot.kind === "image" ? `${shot.aspect} ${shot.provider}` : `${shot.duration}s from ${shot.from}`;
-    if (shot.kind === "image" && shot.role === "storyboard") detail += " [storyboard]";
+      shot.kind === "image"
+        ? `${shot.aspect} ${shot.provider}`
+        : `${shot.duration}s ${shot.resolution ?? "720p"} from ${shot.from}`;
+    if (shot.kind === "image" && shot.role) detail += ` [${shot.role}]`;
     if (shot.kind === "image" && shot.frame) detail += ` [${shot.frame}]`;
+    if (shot.kind === "image" && shot.deriveFrom) {
+      detail += ` crop:${shot.deriveFrom.sourceId}/${shot.deriveFrom.panel}`;
+    }
     if (shot.kind === "image" && shot.refs?.length) detail += ` refs:${shot.refs.join(",")}`;
     if (shot.kind === "video" && shot.refs?.length) detail += ` + ${shot.refs.join(",")}`;
     const stale =
@@ -214,8 +241,40 @@ async function main(argv: string[]): Promise<number> {
       else {
         console.log(`Created ${root}/canvas/project.json`);
         console.log("");
-        console.log("Flow: storyboard image → canvas storyboard set <id> → canvas scene add --name …");
+        console.log(
+          "Flow: character + location images → lock them → canvas scene add --name …",
+        );
         console.log("Video permission: grok → /privacy → Opt in  (see README)");
+      }
+      return 0;
+    }
+
+    case "lock": {
+      const kind = args.positional[1];
+      const imageId = args.positional[2];
+      if ((kind !== "character" && kind !== "location") || !imageId) {
+        throw new UsageError("Usage: canvas lock character|location <image-id>");
+      }
+      const project = await loadProject(root);
+      const next =
+        kind === "character"
+          ? setCharacterLock(project, imageId)
+          : setLocationLock(project, imageId);
+      await saveProject(root, next);
+      if (json) {
+        console.log(
+          JSON.stringify(
+            {
+              ok: true,
+              characterLockId: next.characterLockId,
+              locationLockId: next.locationLockId,
+            },
+            null,
+            2,
+          ),
+        );
+      } else {
+        console.log(`${kind} lock set to ${imageId}`);
       }
       return 0;
     }
@@ -238,9 +297,13 @@ async function main(argv: string[]): Promise<number> {
       const name = str(args, "name");
       if (!name) throw new UsageError("--name is required");
       const provider = (str(args, "provider") ?? "codex") as ImageProvider;
-      const durationRaw = str(args, "duration") ?? "6";
+      const durationRaw = str(args, "duration") ?? "10";
       if (durationRaw !== "6" && durationRaw !== "10") {
         throw new UsageError("--duration must be 6 or 10");
+      }
+      const resolutionRaw = (str(args, "resolution") ?? "720p") as VideoResolution;
+      if (resolutionRaw !== "480p" && resolutionRaw !== "720p") {
+        throw new UsageError("--resolution must be 480p or 720p");
       }
       const aspectRaw = str(args, "aspect");
       const aspect = aspectRaw as Aspect | undefined;
@@ -250,10 +313,10 @@ async function main(argv: string[]): Promise<number> {
       const { project, scene } = addScene(await loadProject(root), {
         name,
         panels: str(args, "panels"),
-        storyboardId: str(args, "storyboard"),
         provider,
         aspect,
         duration: Number(durationRaw) as 6 | 10,
+        resolution: resolutionRaw,
         firstPrompt: str(args, "first-prompt"),
         middlePrompt: str(args, "middle-prompt"),
         lastPrompt: str(args, "last-prompt"),
@@ -263,10 +326,14 @@ async function main(argv: string[]): Promise<number> {
       if (json) console.log(JSON.stringify({ ok: true, scene }, null, 2));
       else {
         console.log(`Added ${scene.id} "${scene.name}"`);
+        if (scene.stripId) console.log(`  strip:  ${scene.stripId}`);
         console.log(
-          `  frames: ${scene.frames.first} → ${scene.frames.middle} → ${scene.frames.last}`,
+          `  crops:  ${scene.frames.first} → ${scene.frames.middle} → ${scene.frames.last}`,
         );
         console.log(`  video:  ${scene.videoId}`);
+        console.log(
+          `  style refs: ${project.characterLockId}, ${project.locationLockId}`,
+        );
       }
       return 0;
     }
@@ -284,20 +351,28 @@ async function main(argv: string[]): Promise<number> {
         }
         const provider = (str(args, "provider") ?? "grok") as ImageProvider;
         const refs = parseRefList(str(args, "refs"));
+        const roleRaw = str(args, "role");
+        const roles: ImageRole[] = ["character", "location", "storyboard", "frame"];
+        if (roleRaw && !roles.includes(roleRaw as ImageRole)) {
+          throw new UsageError(`--role must be one of ${roles.join(", ")}`);
+        }
         const result = addImageShot(project, {
           prompt,
           aspect,
           provider,
           id: str(args, "id"),
           refs,
+          role: roleRaw as ImageRole | undefined,
         });
         await saveProject(root, result.project);
         if (json) console.log(JSON.stringify({ ok: true, shot: result.shot }, null, 2));
         else {
-          const r = result.shot.kind === "image" && result.shot.refs?.length
-            ? ` (refs: ${result.shot.refs.join(", ")})`
-            : "";
-          console.log(`Added ${result.shot.id}${r}`);
+          const bits: string[] = [];
+          if (result.shot.kind === "image" && result.shot.role) bits.push(result.shot.role);
+          if (result.shot.kind === "image" && result.shot.refs?.length) {
+            bits.push(`refs: ${result.shot.refs.join(", ")}`);
+          }
+          console.log(`Added ${result.shot.id}${bits.length ? ` (${bits.join(", ")})` : ""}`);
         }
         return 0;
       }
@@ -305,15 +380,20 @@ async function main(argv: string[]): Promise<number> {
       if (kind === "video") {
         const from = str(args, "from");
         if (!from) throw new UsageError("--from <image shot id> is required for video");
-        const durationRaw = str(args, "duration") ?? "6";
+        const durationRaw = str(args, "duration") ?? "10";
         if (durationRaw !== "6" && durationRaw !== "10") {
           throw new UsageError("--duration must be 6 or 10");
+        }
+        const resolutionRaw = (str(args, "resolution") ?? "720p") as VideoResolution;
+        if (resolutionRaw !== "480p" && resolutionRaw !== "720p") {
+          throw new UsageError("--resolution must be 480p or 720p");
         }
         const refs = parseRefList(str(args, "refs"));
         const result = addVideoShot(project, {
           prompt,
           from,
           duration: Number(durationRaw) as 6 | 10,
+          resolution: resolutionRaw,
           id: str(args, "id"),
           refs,
         });
@@ -379,6 +459,35 @@ async function main(argv: string[]): Promise<number> {
         );
       }
       return summary.failed > 0 ? 1 : 0;
+    }
+
+    case "stitch": {
+      const project = await loadProject(root);
+      const result = await stitchScenes(project, root);
+      if (json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else if (result.ok) {
+        console.log(
+          `Stitched ${result.clips.length} scenes → ${result.path}`,
+        );
+        for (const c of result.clips) {
+          console.log(`  ${c.sceneId}  ${c.sceneName}  (${c.videoId})`);
+        }
+        if (result.missing.length) {
+          console.log("Skipped (not ready):");
+          for (const m of result.missing) {
+            console.log(`  ${m.sceneId}  ${m.reason}`);
+          }
+        }
+      } else {
+        console.error(result.message ?? "Stitch failed");
+        if (result.missing.length) {
+          for (const m of result.missing) {
+            console.error(`  ${m.sceneId} (${m.sceneName}): ${m.reason}`);
+          }
+        }
+      }
+      return result.ok ? 0 : 1;
     }
 
     case "status": {

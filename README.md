@@ -109,7 +109,7 @@ You pay for the providers you already use:
 
 | What | Provider | How you auth |
 |---|---|---|
-| Images + video | Grok Build | `grok login` |
+| Images + video | xAI Imagine API | `grok login` (session) or `XAI_API_KEY` |
 | Optional stills | Codex | `codex login` |
 | This repo | Open source (MIT) | Free |
 
@@ -129,7 +129,7 @@ cd reel-video
 npm install
 ```
 
-Requirements: **Node 20+**, [Grok Build](https://grok.x.ai/) CLI, optional [Codex](https://openai.com/codex) CLI.
+Requirements: **Node 20+**, optional [Grok Build](https://grok.x.ai/) CLI for `grok login` (or set `XAI_API_KEY`), optional [Codex](https://openai.com/codex) CLI.
 
 ### 2. Log in once
 
@@ -267,7 +267,7 @@ The software is free and open source under the [MIT license](LICENSE). Image and
 
 ### Do I need API keys?
 
-No. Auth is CLI login: `grok login` and optional `codex login`.
+No. Auth is `grok login` (session token in `~/.grok/auth.json`) or `XAI_API_KEY`, and optional `codex login` for Codex stills. Video/image for Grok go to `api.x.ai` directly — not `grok -p`.
 
 ### Where do videos and images go?
 
@@ -307,7 +307,7 @@ Images often still work when video is blocked. Reel Video never invents a public
 
 ## Safety
 
-The runner grants the model **one media tool per call** (`image_gen` or `reference_to_video`). No shell, no web, no free filesystem for the model.
+Grok stills use **`grok-imagine-image-quality`**; video uses **`grok-imagine-video-1.5`** via the Imagine REST API (`/images/*`, `/videos/generations` with `reference_images`). No `grok -p` agent loop.
 
 More: [docs/zdr.md](docs/zdr.md) · [docs/design.md](docs/design.md)
 

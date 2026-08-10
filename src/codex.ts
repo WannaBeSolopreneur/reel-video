@@ -132,6 +132,8 @@ export async function generateImageWithCodex(
 
   const prompt = [
     "Generate exactly one still image. Do not only describe it.",
+    "Use the imagegen / image_gen tool with GPT Image 2 at the highest quality setting available (quality: high).",
+    "Prefer high-fidelity, detailed output over drafts or low/medium quality.",
     `Aspect ratio: ${input.aspect}.`,
     `Save the finished image to this absolute path (create parent dirs if needed): ${input.outPath}`,
     "Prefer JPEG or PNG.",

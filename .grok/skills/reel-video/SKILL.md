@@ -31,23 +31,26 @@ Work from the package root (e.g. `agent-canvas/` or a clone of `reel-video`).
 ## Mental model
 
 ```
-Storyboard (1 multi-panel still — the visual bible)
+Character lock  (cast bible — faces, bodies, wardrobe)
+Location lock   (set / world bible)
   └── Scene (~6s story beat)
-        ├── first frame   (full frame still, refs storyboard)
-        ├── middle frame  (full frame still, refs storyboard)
-        ├── last frame    (full frame still, refs storyboard)
-        └── video         reference_to_video([first, mid, last])
+        ├── strip         ONE 3-panel still (refs: character + location)
+        ├── first/mid/last  CROPS of strip (no model) — left/middle/right
+        └── video         reference_to_video([crops])  — action prompt only
 ```
 
-| Piece | File type | Role |
-|---|---|---|
-| Storyboard | One image | Full plot, multi-panel (e.g. 8 panels). Style + character lock. |
-| Scene | Grouping | One ~6s chapter of the story (e.g. panels 1–4). |
-| 3 frames | Three images | First / mid / last of that scene — what the video model can use. |
-| Video | One mp4 | Morphs the three stills in order. **Does not accept video as input.** |
+Optional: multi-panel **storyboard** as a plot map only (not required for scenes).
 
-`reference_to_video` takes **2–7 images only**, not `.mp4`. Continuity for later
-boards uses **prior stills** via `--refs`, never prior videos.
+| Piece | Role |
+|---|---|
+| Character lock | Who they are. Generate first. |
+| Location lock | Where it is. Generate first. |
+| Scene strip | One model gen per scene; 3 equal panels L→R. |
+| Crops | Auto-sliced thirds of the strip (ffmpeg/sips). |
+| Video | Morph first→mid→last; **action/camera** only. |
+
+`reference_to_video` takes **2–7 images only**, not `.mp4`. Across scenes, keep
+using the **same locks** as strip refs so cast and set stay stable.
 
 ## Setup (once per machine / account)
 
@@ -77,72 +80,56 @@ npm run canvas -- serve --port 4180   # open browser; restart after code changes
 After any code change that affects serve/UI, **restart serve** and tell the user
 to refresh.
 
-### 2. Storyboard (master board)
-
-Prefer **Codex** for multi-panel boards when the user wants that; otherwise Grok.
+### 2. Character + location locks (required before scenes)
 
 ```bash
-npm run canvas -- add image --provider codex --aspect 16:9 --id img-1 \
-  --prompt "ONE single image: N-panel storyboard grid … consistent character … style … NO text, NO watermark"
-npm run canvas -- storyboard set img-1
+npm run canvas -- add image --provider codex --aspect 16:9 --role character \
+  --prompt "ONE image: character bible / cast lineup, consistent design, full body + face clarity, style… NO text"
+npm run canvas -- add image --provider codex --aspect 16:9 --role location \
+  --prompt "ONE image: location bible, empty or establishing set, lighting and architecture locked… NO text"
+# or: canvas lock character img-1 && canvas lock location img-2
 ```
 
-Prompt rules for boards:
-- Explicitly **one image**, multi-panel layout (e.g. 2×4 for 8 panels).
-- Number panels and describe each beat left-to-right, top-to-bottom.
-- Style lock phrase (Pixar, live action, etc.) and “same character in every panel”.
-- Forbid text, captions, speech bubbles, watermarks.
+Generate **both locks to ready** before scaffolding scenes.
 
-User generates the board in the UI (or `canvas run --shot img-1` if asked).
-
-### 3. Scenes (3 frames + video)
+### 3. Scenes (strip → crop → video)
 
 ```bash
-npm run canvas -- scene add --name "Ride and trip" --panels 1-4 --provider codex --duration 6
+npm run canvas -- scene add --name "Ride and trip" --panels "opening beats" --provider codex --duration 6
 ```
 
-Optional overrides: `--first-prompt`, `--middle-prompt`, `--last-prompt`,
-`--video-prompt`, `--storyboard img-1`.
-
-This creates:
-- three image shots with `refs: [storyboard]`, `frame: first|middle|last`
-- one video with `from: first`, `refs: [middle, last]`
-
-**Do not invent free-floating keyframes** without the storyboard as ref when
-continuing a story — style will drift.
+Requires both locks. Creates:
+- one **strip** image (`role: strip`, `refs: [character, location]`)
+- three **crops** (`deriveFrom` left/middle/right of the strip — no model)
+- one video (`from: first crop`, `refs: [mid, last]`, action-only prompt)
 
 ### 4. User generates
 
 Order in UI / run:
-1. Storyboard ready  
-2. Scene frames (first, mid, last)  
-3. Scene video  
+1. Character lock + location lock ready  
+2. Scene **strip** ready  
+3. Crops auto-run (or **Run scene** does strip → crops → video)  
 
 Status: `npm run canvas -- status`.
 
 ## Prompt recipes
 
-### Scene frame (always ref storyboard)
+### Scene strip (one gen — three panels)
 
 ```
-SINGLE cinematic frame (NOT multi-panel). FIRST|MIDDLE|LAST FRAME of scene "<name>".
-Use attached storyboard as ONLY style/character reference — match exact design.
-This frame = <beat>. Full shot. NO panels, NO text, NO watermark.
+ONE image: 3-panel strip L→R for scene "<name>", equal panels, clean gutters.
+Attached CHARACTER + LOCATION locks only — match exactly every panel.
+LEFT: <start action>. MIDDLE: <mid action>. RIGHT: <end action>.
+NO text, NO numbers, NO watermark.
 ```
 
-### Scene video (three stills in order)
+### Scene video (three crops — action only)
 
 ```
 Animate continuous N-second shot using three reference stills IN ORDER:
 first = start, second = middle, third = end of scene "<name>".
-Morph smoothly first→mid→last. Match characters/world from the stills.
-Clear beats, no on-screen text.
-```
-
-### Continuity / next board
-
-```bash
-npm run canvas -- add image --provider codex --refs img-1 --prompt "ONE image, 4-panel grid, CONTINUATION of attached board…"
+Morph smoothly first→mid→last. Action and camera only.
+Match people and place from the stills. No redesign, no on-screen text.
 ```
 
 ## Commands cheat sheet
@@ -150,9 +137,11 @@ npm run canvas -- add image --provider codex --refs img-1 --prompt "ONE image, 4
 | Command | Purpose |
 |---|---|
 | `canvas init [name]` | Create `canvas/project.json` |
-| `canvas storyboard set <img-id>` | Mark master board |
-| `canvas scene add --name … [--panels …]` | Scaffold 3 frames + video |
-| `canvas add image … [--provider codex\|grok] [--refs a,b]` | Free image |
+| `canvas lock character <id>` | Mark cast bible |
+| `canvas lock location <id>` | Mark set bible |
+| `canvas storyboard set <img-id>` | Optional plot board |
+| `canvas scene add --name … [--panels …]` | Scaffold 3 frames + video (needs both locks) |
+| `canvas add image … [--role character\|location] [--refs a,b]` | Free image |
 | `canvas add video --from <id> [--refs a,b] [--duration 6\|10]` | Free video |
 | `canvas set <id> --prompt …` | Edit prompt (marks pending) |
 | `canvas rm <id>` | Remove shot (blocked if scene-wired) |
@@ -164,7 +153,7 @@ npm run canvas -- add image --provider codex --refs img-1 --prompt "ONE image, 4
 
 ## UI rules
 
-- UI groups: **Storyboard** block, then each **Scene** (first/mid/last + video).
+- UI groups: **Style locks** (character + location), optional storyboard, then each **Scene**.
 - Asset URLs are content-addressed; never cache-bust with `Date.now()`.
 - After serve restarts, tell the user to **refresh** the browser.
 
@@ -175,16 +164,16 @@ npm run canvas -- add image --provider codex --refs img-1 --prompt "ONE image, 4
 | Video: `output.upload_url` / ZDR | `grok` → `/privacy` → Opt in; or `docs/zdr.md` R2 config |
 | Codex: `No prompt provided via stdin` | Ensure package has stdin-based prompt pass (codex.ts); restart serve; `codex login` |
 | Codex wrote no image | Check `codex login`; re-Generate; inspect shot message |
-| Style drift on new board/frames | Must use `--refs <storyboard>` / scene scaffolding |
-| Video ignores board | Use three **scene frames** as refs, not only the multi-panel grid |
+| Style drift on scene frames | Both locks ready; frames must `refs: [character, location]` |
+| Scene add fails | Set character + location locks first |
 | Want longer than 10s | Add another **scene**, do not fight duration enum |
 
 ## Anti-patterns
 
 - Running full `canvas run` unprompted while the user is driving the UI  
 - Feeding **video files** into `reference_to_video`  
-- Generating scene frames **without** storyboard refs  
-- One video for an 8-panel arc without splitting into scenes  
+- Generating scene frames **without** character + location lock refs  
+- Scaffolding scenes before both locks exist  
 - Standing up tunnels or public upload endpoints for ZDR  
 - Committing `.env` or `canvas/assets/` to git  
 

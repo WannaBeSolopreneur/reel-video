@@ -8,6 +8,7 @@ import {
   nextShotId,
   pendingShots,
   removeShot,
+  sceneTiming,
   setStoryboard,
   shotHash,
   updateShot,
@@ -52,7 +53,7 @@ test("a video cannot animate another video", () => {
 test("removing an image that a video depends on is refused", () => {
   let { project } = withImage();
   ({ project } = addVideoShot(project, { prompt: "push in", from: "img-1" }));
-  assert.throws(() => removeShot(project, "img-1"), /used by video vid-1/);
+  assert.throws(() => removeShot(project, "img-1"), /used by vid-1/);
 });
 
 test("removing an unused shot works", () => {
@@ -108,25 +109,98 @@ test("images are ordered before the videos that need them", () => {
   );
 });
 
-test("scene scaffolds three frames + video locked to storyboard", () => {
-  let { project, shot } = addImageShot(emptyProject("sb"), {
-    prompt: "8-panel board",
+test("sceneTiming maps 10s and 6s into three windows", () => {
+  const t10 = sceneTiming(10);
+  assert.equal(t10.setupSec, 3);
+  assert.equal(t10.peakSec, 4);
+  assert.equal(t10.afterSec, 3);
+  assert.match(t10.setupRange, /00:00/);
+  assert.match(t10.afterRange, /00:10/);
+  const t6 = sceneTiming(6);
+  assert.equal(t6.setupSec + t6.peakSec + t6.afterSec, 6);
+});
+
+test("default scene prompts use editable timed template (10s)", () => {
+  let { project } = addImageShot(emptyProject("timing"), {
+    prompt: "cast",
     id: "img-1",
+    role: "character",
   });
-  project = setStoryboard(project, shot.id);
-  const added = addScene(project, { name: "Ride", panels: "1-4", provider: "codex" });
+  ({ project } = addImageShot(project, {
+    prompt: "set",
+    id: "img-2",
+    role: "location",
+  }));
+  const { project: next } = addScene(project, {
+    name: "Beat",
+    panels: "press the button",
+    duration: 10,
+  });
+  const strip = next.shots.find(
+    (s) => s.kind === "image" && s.role === "strip",
+  );
+  assert.ok(strip && strip.kind === "image");
+  assert.match(strip.prompt, /SCENE STRIP TEMPLATE \(10s\)/);
+  assert.match(strip.prompt, /EDIT THESE THREE ACTIONS/);
+  assert.match(strip.prompt, /0-3s/);
+  assert.match(strip.prompt, /3-7s/);
+  assert.match(strip.prompt, /7-10s/);
+  assert.match(strip.prompt, /press the button/);
+  const video = next.shots.find((s) => s.kind === "video");
+  assert.ok(video && video.kind === "video");
+  assert.equal(video.duration, 10);
+  assert.match(video.prompt, /SCENE VIDEO TEMPLATE \(10s\)/);
+  assert.match(video.prompt, /EDIT ACTION/);
+  assert.match(video.prompt, /00:00/);
+  assert.match(video.prompt, /00:10/);
+  assert.match(video.prompt, /FULL length|do not rush/i);
+});
+
+test("scene scaffolds strip + three crops + video locked to character and location", () => {
+  let { project } = addImageShot(emptyProject("locks"), {
+    prompt: "cast bible",
+    id: "img-1",
+    role: "character",
+  });
+  ({ project } = addImageShot(project, {
+    prompt: "set bible",
+    id: "img-2",
+    role: "location",
+  }));
+  assert.equal(project.characterLockId, "img-1");
+  assert.equal(project.locationLockId, "img-2");
+
+  const added = addScene(project, { name: "Ride", panels: "opening chaos", provider: "codex" });
   project = added.project;
   assert.equal(project.scenes.length, 1);
-  assert.equal(added.scene.frames.first, "img-2");
-  assert.equal(added.scene.frames.middle, "img-3");
-  assert.equal(added.scene.frames.last, "img-4");
+  assert.equal(added.scene.stripId, "img-3");
+  assert.equal(added.scene.frames.first, "img-4");
+  assert.equal(added.scene.frames.middle, "img-5");
+  assert.equal(added.scene.frames.last, "img-6");
   assert.equal(added.scene.videoId, "vid-1");
+  const strip = project.shots.find((s) => s.id === "img-3");
+  assert.ok(strip && strip.kind === "image");
+  assert.equal(strip.role, "strip");
+  assert.deepEqual(strip.refs, ["img-1", "img-2"]);
+  const first = project.shots.find((s) => s.id === "img-4");
+  assert.ok(first && first.kind === "image");
+  assert.deepEqual(first.deriveFrom, { sourceId: "img-3", panel: "left" });
+  assert.equal(first.frame, "first");
   const video = project.shots.find((s) => s.id === "vid-1");
   assert.ok(video && video.kind === "video");
-  assert.equal(video.from, "img-2");
-  assert.deepEqual(video.refs, ["img-3", "img-4"]);
-  const first = project.shots.find((s) => s.id === "img-2");
-  assert.ok(first && first.kind === "image");
-  assert.deepEqual(first.refs, ["img-1"]);
-  assert.equal(first.frame, "first");
+  assert.equal(video.from, "img-4");
+  assert.deepEqual(video.refs, ["img-5", "img-6"]);
+  // pending order: non-derived images before crops before video
+  assert.deepEqual(
+    pendingShots(project).map((s) => s.id),
+    ["img-1", "img-2", "img-3", "img-4", "img-5", "img-6", "vid-1"],
+  );
+});
+
+test("scene add fails without both locks", () => {
+  const { project } = addImageShot(emptyProject(), {
+    prompt: "cast only",
+    role: "character",
+  });
+  assert.throws(() => addScene(project, { name: "Nope" }), /locks required/i);
 });

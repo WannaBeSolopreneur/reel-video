@@ -9,10 +9,15 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { basename, extname, join } from "node:path";
-import { assetsDir, loadProject, saveProject, updateShot } from "./project.ts";
-import { runProject } from "./runner.ts";
-import type { ImageProvider, Shot } from "./types.ts";
+import { basename, extname, join, normalize, relative, resolve, sep } from "node:path";
+import { assetsDir, findScene, loadProject, saveProject, updateShot } from "./project.ts";
+import {
+  refreshMotionPromptFromStrip,
+  restoreHistoryAsset,
+  runProject,
+} from "./runner.ts";
+import { stitchScenes } from "./stitch.ts";
+import type { ImageProvider, Project, Shot } from "./types.ts";
 import { renderPage } from "./views.ts";
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -49,35 +54,84 @@ function redirectHome(res: ServerResponse): void {
  * Kick a run off without holding the request open. The page shows `running`
  * and refreshes itself until the runner is done.
  */
-function startRun(root: string, shotIds?: string[]): void {
+function startRun(root: string, shotIds?: string[], force = false): void {
   if (running) return;
   running = true;
   void (async () => {
     try {
       const project = await loadProject(root);
-      await runProject(project, { root, shotIds });
+      // Explicit shot lists (Re-animate / Run scene) always force so a ready
+      // shot is not skipped as "unchanged".
+      const shouldForce = force || Boolean(shotIds?.length);
+      await runProject(project, { root, shotIds, force: shouldForce });
     } catch (err) {
       console.error("[canvas] run failed:", err instanceof Error ? err.message : err);
     } finally {
       running = false;
+      // If anything is still marked running after the loop, clear it so the UI
+      // does not auto-refresh forever after a crash/interrupt.
+      try {
+        await clearStuckRunning(root);
+      } catch {
+        // ignore
+      }
     }
   })();
 }
 
+/**
+ * Shots left as `running` after serve restarts or a crashed generation would
+ * otherwise trigger infinite page refresh. Reset them to pending when no live
+ * run is in flight.
+ */
+async function clearStuckRunning(root: string): Promise<Project> {
+  let project = await loadProject(root);
+  if (running) return project;
+  let dirty = false;
+  for (const shot of project.shots) {
+    if (shot.status === "running") {
+      project = updateShot(project, shot.id, {
+        status: "pending",
+        message: "Interrupted — click Generate to retry",
+      });
+      dirty = true;
+    }
+  }
+  if (dirty) project = await saveProject(root, project);
+  return project;
+}
+
+/**
+ * Serve files under canvas/assets/, including history/ subfolders.
+ * Rejects path traversal; only relative paths inside assetsDir are allowed.
+ */
 async function serveAsset(root: string, name: string, res: ServerResponse): Promise<void> {
-  // basename() strips any traversal attempt before it reaches the filesystem.
-  const safe = basename(decodeURIComponent(name));
-  const file = join(assetsDir(root), safe);
+  const decoded = decodeURIComponent(name).replace(/^\/+/, "");
+  // Normalize and ensure the resolved path stays under assets/.
+  const assetsRoot = resolve(assetsDir(root));
+  const candidate = resolve(assetsRoot, decoded);
+  const rel = relative(assetsRoot, candidate);
+  if (!rel || rel.startsWith("..") || rel.includes(`..${sep}`) || rel === "..") {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Bad path");
+    return;
+  }
+  // Only allow simple relative segments (history/vid-1/file.mp4).
+  if (rel.split(sep).some((part) => part === "" || part === "." || part === "..")) {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Bad path");
+    return;
+  }
   try {
-    const info = await stat(file);
+    const info = await stat(candidate);
     if (!info.isFile()) throw new Error("not a file");
+    const ext = extname(candidate).toLowerCase();
     res.writeHead(200, {
-      "Content-Type": CONTENT_TYPES[extname(safe).toLowerCase()] ?? "application/octet-stream",
+      "Content-Type": CONTENT_TYPES[ext] ?? "application/octet-stream",
       "Content-Length": String(info.size),
-      // Safe because the URL carries the content hash: new bytes, new URL.
       "Cache-Control": "public, max-age=31536000, immutable",
     });
-    createReadStream(file).pipe(res);
+    createReadStream(candidate).pipe(res);
   } catch {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not found");
@@ -105,8 +159,9 @@ export function serve(options: ServeOptions): Promise<{ port: number; close: () 
     const path = url.pathname;
 
     if (req.method === "GET" && path === "/") {
-      const project = await loadProject(root);
-      const html = renderPage(project, root);
+      // Heal orphaned "running" markers before rendering (unless a live run owns them).
+      const project = running ? await loadProject(root) : await clearStuckRunning(root);
+      const html = renderPage(project, root, { liveRun: running });
       res.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
@@ -116,7 +171,7 @@ export function serve(options: ServeOptions): Promise<{ port: number; close: () 
     }
 
     if (req.method === "GET" && path === "/api/project") {
-      const project = await loadProject(root);
+      const project = running ? await loadProject(root) : await clearStuckRunning(root);
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       res.end(JSON.stringify({ ...project, running }, null, 2));
       return;
@@ -129,6 +184,42 @@ export function serve(options: ServeOptions): Promise<{ port: number; close: () 
 
     if (req.method === "POST" && path === "/run") {
       startRun(root);
+      redirectHome(res);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/stitch") {
+      const project = await loadProject(root);
+      const result = await stitchScenes(project, root);
+      if (!result.ok) {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><meta charset="utf-8"><title>Stitch failed</title>
+           <p>${result.message ?? "Stitch failed"}</p>
+           <p><a href="/">← Back</a></p>`,
+        );
+        return;
+      }
+      redirectHome(res);
+      return;
+    }
+
+    // Run one scene end-to-end: strip → crops → video.
+    const sceneRunMatch = /^\/scene\/([^/]+)\/run$/.exec(path);
+    if (req.method === "POST" && sceneRunMatch) {
+      const sceneId = decodeURIComponent(sceneRunMatch[1]!);
+      const project = await loadProject(root);
+      const scene = findScene(project, sceneId);
+      if (scene) {
+        const ids = [
+          ...(scene.stripId ? [scene.stripId] : []),
+          scene.frames.first,
+          scene.frames.middle,
+          scene.frames.last,
+          scene.videoId,
+        ];
+        startRun(root, ids);
+      }
       redirectHome(res);
       return;
     }
@@ -183,7 +274,65 @@ export function serve(options: ServeOptions): Promise<{ port: number; close: () 
           await saveProject(root, updateShot(project, id, patch));
         }
       }
-      startRun(root, [id]);
+      startRun(root, [id], true);
+      redirectHome(res);
+      return;
+    }
+
+    // Rewrite video motion prompt by vision-reviewing the scene strip/crops.
+    const motionMatch = /^\/shot\/([^/]+)\/motion-from-strip$/.exec(path);
+    if (req.method === "POST" && motionMatch) {
+      const id = decodeURIComponent(motionMatch[1]!);
+      try {
+        const project = await loadProject(root);
+        const result = await refreshMotionPromptFromStrip(root, project, id);
+        if (!result.prompt) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(
+            `<!doctype html><meta charset="utf-8"><title>Motion review failed</title>
+             <p>${result.message ?? "Could not write motion prompt from strip."}</p>
+             <p><a href="/">← Back</a></p>`,
+          );
+          return;
+        }
+        await saveProject(root, result.project);
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><meta charset="utf-8"><title>Motion review failed</title>
+           <p>${err instanceof Error ? err.message : String(err)}</p>
+           <p><a href="/">← Back</a></p>`,
+        );
+        return;
+      }
+      redirectHome(res);
+      return;
+    }
+
+    // Restore a previous generation as the active asset (from history).
+    const restoreMatch = /^\/shot\/([^/]+)\/restore$/.exec(path);
+    if (req.method === "POST" && restoreMatch) {
+      const id = decodeURIComponent(restoreMatch[1]!);
+      const body = await readBody(req);
+      const historyAsset = body.get("asset");
+      if (!historyAsset) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Missing asset");
+        return;
+      }
+      try {
+        const project = await loadProject(root);
+        const next = await restoreHistoryAsset(root, project, id, historyAsset);
+        await saveProject(root, next);
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><meta charset="utf-8"><title>Restore failed</title>
+           <p>${err instanceof Error ? err.message : String(err)}</p>
+           <p><a href="/">← Back</a></p>`,
+        );
+        return;
+      }
       redirectHome(res);
       return;
     }

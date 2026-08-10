@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { buildScenePrompts, sceneTiming } from "./scene-prompts.ts";
 import {
   emptyProject,
   isImageShot,
@@ -17,10 +18,16 @@ import {
   type Aspect,
   type FrameRole,
   type ImageProvider,
+  type ImageRole,
   type Project,
   type Scene,
   type Shot,
+  type StripPanel,
+  type VideoResolution,
 } from "./types.ts";
+
+/** Re-export timing helper (canonical impl lives with prompt templates). */
+export { sceneTiming } from "./scene-prompts.ts";
 
 export const PROJECT_DIRNAME = "canvas";
 export const PROJECT_FILENAME = "project.json";
@@ -52,6 +59,8 @@ export function migrateProject(raw: unknown): Project {
     name: typeof p.name === "string" ? p.name : base.name,
     shots: p.shots,
     storyboardId: p.storyboardId ?? null,
+    characterLockId: p.characterLockId ?? null,
+    locationLockId: p.locationLockId ?? null,
     scenes: Array.isArray(p.scenes) ? p.scenes : [],
     createdAt: typeof p.createdAt === "string" ? p.createdAt : base.createdAt,
     updatedAt: typeof p.updatedAt === "string" ? p.updatedAt : base.updatedAt,
@@ -115,9 +124,19 @@ export interface AddImageOptions {
   id?: string;
   /** Prior image shot ids for visual style/character lock. */
   refs?: string[];
-  role?: "storyboard" | "frame";
+  role?: ImageRole;
   frame?: FrameRole;
+  /** Crop from a strip instead of generating. */
+  deriveFrom?: { sourceId: string; panel: StripPanel };
   sceneId?: string;
+}
+
+/** Character + location locks, in that order (for scene frame --refs). */
+export function lockRefIds(project: Project): string[] {
+  const ids: string[] = [];
+  if (project.characterLockId) ids.push(project.characterLockId);
+  if (project.locationLockId) ids.push(project.locationLockId);
+  return ids;
 }
 
 function resolveImageRefs(project: Project, refs: string[] | undefined, selfId?: string): string[] {
@@ -144,6 +163,14 @@ export function addImageShot(project: Project, options: AddImageOptions): {
   const id = options.id ?? nextShotId(project, "image");
   if (findShot(project, id)) throw new Error(`Shot id already exists: ${id}`);
   const refs = resolveImageRefs(project, options.refs, id);
+  if (options.deriveFrom) {
+    const src = findShot(project, options.deriveFrom.sourceId);
+    if (!src || src.kind !== "image") {
+      throw new Error(
+        `deriveFrom source must be an image shot: ${options.deriveFrom.sourceId}`,
+      );
+    }
+  }
   const shot: Shot = {
     id,
     kind: "image",
@@ -153,6 +180,7 @@ export function addImageShot(project: Project, options: AddImageOptions): {
     ...(refs.length ? { refs } : {}),
     ...(options.role ? { role: options.role } : {}),
     ...(options.frame ? { frame: options.frame } : {}),
+    ...(options.deriveFrom ? { deriveFrom: options.deriveFrom } : {}),
     ...(options.sceneId ? { sceneId: options.sceneId } : {}),
     status: "pending",
     asset: null,
@@ -163,6 +191,10 @@ export function addImageShot(project: Project, options: AddImageOptions): {
   let next: Project = { ...project, shots: [...project.shots, shot] };
   if (options.role === "storyboard") {
     next = { ...next, storyboardId: id };
+  } else if (options.role === "character") {
+    next = { ...next, characterLockId: id };
+  } else if (options.role === "location") {
+    next = { ...next, locationLockId: id };
   }
   return { project: next, shot };
 }
@@ -171,6 +203,7 @@ export interface AddVideoOptions {
   prompt: string;
   from: string;
   duration?: 6 | 10;
+  resolution?: VideoResolution;
   id?: string;
   /** Extra image ids for style continuity (in addition to `from`). */
   refs?: string[];
@@ -196,7 +229,8 @@ export function addVideoShot(project: Project, options: AddVideoOptions): {
     kind: "video",
     prompt: options.prompt,
     from: options.from,
-    duration: options.duration ?? 6,
+    duration: options.duration ?? 10,
+    resolution: options.resolution ?? "720p",
     ...(refs.length ? { refs } : {}),
     ...(options.sceneId ? { sceneId: options.sceneId } : {}),
     status: "pending",
@@ -216,36 +250,56 @@ export function nextSceneId(project: Project): string {
   }
 }
 
-/** Mark an existing image shot as the project storyboard master. */
-export function setStoryboard(project: Project, imageId: string): Project {
+function setImageRole(
+  project: Project,
+  imageId: string,
+  role: "storyboard" | "character" | "location",
+  field: "storyboardId" | "characterLockId" | "locationLockId",
+): Project {
   const shot = findShot(project, imageId);
   if (!shot) throw new Error(`Shot not found: ${imageId}`);
   if (shot.kind !== "image") {
-    throw new Error(`Storyboard must be an image shot, not ${shot.kind}.`);
+    throw new Error(`${role} lock must be an image shot, not ${shot.kind}.`);
   }
   const shots = project.shots.map((s) => {
     if (s.kind !== "image") return s;
     if (s.id === imageId) {
-      return { ...s, role: "storyboard" as const, updatedAt: new Date().toISOString() };
+      return { ...s, role, updatedAt: new Date().toISOString() };
     }
-    if (s.role === "storyboard") {
+    if (s.role === role) {
       const { role: _r, ...rest } = s;
       return { ...rest, updatedAt: new Date().toISOString() } as Shot;
     }
     return s;
   });
-  return { ...project, shots, storyboardId: imageId };
+  return { ...project, shots, [field]: imageId };
+}
+
+/** Mark an existing image shot as the project storyboard (optional plot map). */
+export function setStoryboard(project: Project, imageId: string): Project {
+  return setImageRole(project, imageId, "storyboard", "storyboardId");
+}
+
+/** Mark an existing image as the character lock (cast bible). */
+export function setCharacterLock(project: Project, imageId: string): Project {
+  return setImageRole(project, imageId, "character", "characterLockId");
+}
+
+/** Mark an existing image as the location lock (set / world bible). */
+export function setLocationLock(project: Project, imageId: string): Project {
+  return setImageRole(project, imageId, "location", "locationLockId");
 }
 
 export interface AddSceneOptions {
   name: string;
   panels?: string;
-  /** Defaults to project.storyboardId. */
-  storyboardId?: string;
   provider?: ImageProvider;
   aspect?: Aspect;
   duration?: 6 | 10;
-  /** Override auto prompts for the three frames + video. */
+  resolution?: VideoResolution;
+  /** Override the 3-panel strip prompt (preferred over per-frame prompts). */
+  stripPrompt?: string;
+  /** Optional beat lines for the three panels when stripPrompt is not set. */
   firstPrompt?: string;
   middlePrompt?: string;
   lastPrompt?: string;
@@ -253,45 +307,53 @@ export interface AddSceneOptions {
 }
 
 /**
- * Scaffold a scene: three keyframes (first/mid/last) style-locked to the
- * storyboard, plus a video that uses those three in order.
+ * Scaffold a scene: one 3-panel strip (model) → three crops → action video.
+ * Strip refs character + location locks. Frames do not call the model.
+ * Strip/video prompts use the editable timed template in scene-prompts.ts.
  */
 export function addScene(
   project: Project,
   options: AddSceneOptions,
 ): { project: Project; scene: Scene } {
-  const boardId = options.storyboardId ?? project.storyboardId;
-  if (!boardId) {
+  const locks = lockRefIds(project);
+  if (!project.characterLockId || !project.locationLockId) {
     throw new Error(
-      "No storyboard set. Add a multi-panel image, then: canvas storyboard set <id>",
+      "Character and location locks required before scenes. " +
+        "Add two images, then: canvas lock character <id> && canvas lock location <id>",
     );
   }
-  const board = findShot(project, boardId);
-  if (!board || board.kind !== "image") {
-    throw new Error(`Storyboard shot not found or not an image: ${boardId}`);
+  for (const id of locks) {
+    const shot = findShot(project, id);
+    if (!shot || shot.kind !== "image") {
+      throw new Error(`Lock shot missing or not an image: ${id}`);
+    }
   }
 
+  const charShot = findShot(project, project.characterLockId)!;
   const sceneId = nextSceneId(project);
   const provider = options.provider ?? "codex";
-  const aspect = options.aspect ?? board.aspect;
+  const aspect =
+    options.aspect ??
+    (charShot.kind === "image" ? charShot.aspect : "16:9");
   const panels = options.panels ?? "";
-  const panelNote = panels ? ` (storyboard panels ${panels})` : "";
   const name = options.name;
+  const duration = options.duration ?? 10;
+  const resolution = options.resolution ?? "720p";
+  const timing = sceneTiming(duration);
 
-  const defaultFirst =
-    options.firstPrompt ??
-    `SINGLE cinematic frame (NOT multi-panel), same style as the attached storyboard. FIRST FRAME of scene "${name}"${panelNote}. Full shot of the OPENING beat of this scene only. Match character and world from the storyboard. NO text, NO watermark.`;
-  const defaultMiddle =
-    options.middlePrompt ??
-    `SINGLE cinematic frame (NOT multi-panel), same style as the attached storyboard. MIDDLE FRAME of scene "${name}"${panelNote}. Full shot of the MID beat of this scene only. Match character and world from the storyboard. NO text, NO watermark.`;
-  const defaultLast =
-    options.lastPrompt ??
-    `SINGLE cinematic frame (NOT multi-panel), same style as the attached storyboard. LAST FRAME of scene "${name}"${panelNote}. Full shot of the ENDING beat of this scene only. Match character and world from the storyboard. NO text, NO watermark.`;
-  const defaultVideo =
-    options.videoPrompt ??
-    `Animate a continuous ${options.duration ?? 6}-second shot using three reference stills IN ORDER: first = start of scene "${name}", second = middle, third = end. Morph smoothly first→mid→last. Match characters and world from the stills. Clear beats, no on-screen text.`;
+  const templated = buildScenePrompts({
+    name,
+    duration,
+    coreAction: panels || undefined,
+    leftAction: options.firstPrompt,
+    middleAction: options.middlePrompt,
+    rightAction: options.lastPrompt,
+  });
+  const defaultStrip = options.stripPrompt ?? templated.stripPrompt;
+  const defaultVideo = options.videoPrompt ?? templated.videoPrompt;
 
   let next = project;
+  let stripId: string;
   let firstId: string;
   let middleId: string;
   let lastId: string;
@@ -299,12 +361,24 @@ export function addScene(
 
   {
     const r = addImageShot(next, {
-      prompt: defaultFirst,
+      prompt: defaultStrip,
       aspect,
       provider,
-      refs: [boardId],
+      refs: locks,
+      role: "strip",
+      sceneId,
+    });
+    next = r.project;
+    stripId = r.shot.id;
+  }
+  {
+    const r = addImageShot(next, {
+      prompt: `Crop: LEFT panel of strip ${stripId} — first frame of "${name}" (${timing.leftWindow} of ${duration}s scene).`,
+      aspect,
+      provider,
       role: "frame",
       frame: "first",
+      deriveFrom: { sourceId: stripId, panel: "left" },
       sceneId,
     });
     next = r.project;
@@ -312,12 +386,12 @@ export function addScene(
   }
   {
     const r = addImageShot(next, {
-      prompt: defaultMiddle,
+      prompt: `Crop: MIDDLE panel of strip ${stripId} — middle frame of "${name}" (${timing.midWindow} of ${duration}s scene).`,
       aspect,
       provider,
-      refs: [boardId],
       role: "frame",
       frame: "middle",
+      deriveFrom: { sourceId: stripId, panel: "middle" },
       sceneId,
     });
     next = r.project;
@@ -325,12 +399,12 @@ export function addScene(
   }
   {
     const r = addImageShot(next, {
-      prompt: defaultLast,
+      prompt: `Crop: RIGHT panel of strip ${stripId} — last frame of "${name}" (${timing.rightWindow} of ${duration}s scene).`,
       aspect,
       provider,
-      refs: [boardId],
       role: "frame",
       frame: "last",
+      deriveFrom: { sourceId: stripId, panel: "right" },
       sceneId,
     });
     next = r.project;
@@ -341,7 +415,8 @@ export function addScene(
       prompt: defaultVideo,
       from: firstId,
       refs: [middleId, lastId],
-      duration: options.duration ?? 6,
+      duration,
+      resolution,
       sceneId,
     });
     next = r.project;
@@ -352,6 +427,7 @@ export function addScene(
     id: sceneId,
     name,
     ...(panels ? { panels } : {}),
+    stripId,
     frames: { first: firstId, middle: middleId, last: lastId },
     videoId,
   };
@@ -380,15 +456,18 @@ export function updateShot(project: Project, id: string, patch: Partial<Shot>): 
 export function removeShot(project: Project, id: string): Project {
   if (!findShot(project, id)) throw new Error(`Shot not found: ${id}`);
   const dependents = project.shots.filter(
-    (shot) => isVideoShot(shot) && (shot.from === id || shot.refs?.includes(id)),
+    (shot) =>
+      (isVideoShot(shot) && (shot.from === id || shot.refs?.includes(id))) ||
+      (isImageShot(shot) && shot.deriveFrom?.sourceId === id),
   );
   if (dependents.length > 0) {
     const names = dependents.map((shot) => shot.id).join(", ");
-    throw new Error(`Cannot remove ${id}: it is used by video ${names}.`);
+    throw new Error(`Cannot remove ${id}: it is used by ${names} (video or crop).`);
   }
   // Refuse if the shot is wired into a scene (remove the scene first, later).
   for (const scene of project.scenes) {
     const used =
+      scene.stripId === id ||
       scene.frames.first === id ||
       scene.frames.middle === id ||
       scene.frames.last === id ||
@@ -401,8 +480,13 @@ export function removeShot(project: Project, id: string): Project {
     }
   }
   const shots = project.shots.filter((shot) => shot.id !== id);
-  const storyboardId = project.storyboardId === id ? null : project.storyboardId;
-  return { ...project, shots, storyboardId };
+  return {
+    ...project,
+    shots,
+    storyboardId: project.storyboardId === id ? null : project.storyboardId,
+    characterLockId: project.characterLockId === id ? null : project.characterLockId,
+    locationLockId: project.locationLockId === id ? null : project.locationLockId,
+  };
 }
 
 export function findScene(project: Project, id: string): Scene | null {
@@ -413,11 +497,21 @@ export function findScene(project: Project, id: string): Scene | null {
 export function sceneShotIds(project: Project): Set<string> {
   const ids = new Set<string>();
   for (const scene of project.scenes) {
+    if (scene.stripId) ids.add(scene.stripId);
     ids.add(scene.frames.first);
     ids.add(scene.frames.middle);
     ids.add(scene.frames.last);
     ids.add(scene.videoId);
   }
+  return ids;
+}
+
+/** Lock + storyboard ids (structural, not free orphans). */
+export function structuralShotIds(project: Project): Set<string> {
+  const ids = sceneShotIds(project);
+  if (project.storyboardId) ids.add(project.storyboardId);
+  if (project.characterLockId) ids.add(project.characterLockId);
+  if (project.locationLockId) ids.add(project.locationLockId);
   return ids;
 }
 
@@ -428,24 +522,41 @@ export function sceneShotIds(project: Project): Set<string> {
 export function shotHash(project: Project, shot: Shot): string {
   const parts: unknown[] = [shot.kind, shot.prompt];
   if (shot.kind === "image") {
-    const refHashes = (shot.refs ?? []).map((id) => findShot(project, id)?.hash ?? null);
-    parts.push(shot.aspect, shot.provider, shot.refs ?? [], refHashes);
+    if (shot.deriveFrom) {
+      const source = findShot(project, shot.deriveFrom.sourceId);
+      parts.push("derive", shot.deriveFrom, source?.hash ?? null);
+    } else {
+      const refHashes = (shot.refs ?? []).map((id) => findShot(project, id)?.hash ?? null);
+      parts.push(shot.aspect, shot.provider, shot.refs ?? [], refHashes);
+    }
   } else {
     const source = findShot(project, shot.from);
     const refHashes = (shot.refs ?? []).map((id) => findShot(project, id)?.hash ?? null);
     // Fold in the source's hash so re-rolling frame 1 invalidates the video.
-    parts.push(shot.duration, shot.from, source?.hash ?? null, shot.refs ?? [], refHashes);
+    parts.push(
+      shot.duration,
+      shot.resolution ?? "720p",
+      shot.from,
+      source?.hash ?? null,
+      shot.refs ?? [],
+      refHashes,
+    );
   }
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 16);
 }
 
-/** Shots that need work, in list order. Images before the videos that need them. */
+/**
+ * Shots that need work. Images before videos. Within images: sources that are
+ * not derived first (strips/locks), then crops that depend on strips.
+ */
 export function pendingShots(project: Project, ids?: string[]): Shot[] {
   const wanted = ids && ids.length > 0 ? new Set(ids) : null;
   const selected = project.shots.filter((shot) => !wanted || wanted.has(shot.id));
   const images = selected.filter((shot) => shot.kind === "image");
+  const sources = images.filter((shot) => shot.kind === "image" && !shot.deriveFrom);
+  const derived = images.filter((shot) => shot.kind === "image" && shot.deriveFrom);
   const videos = selected.filter((shot) => shot.kind === "video");
-  return [...images, ...videos];
+  return [...sources, ...derived, ...videos];
 }
 
 export function needsRun(project: Project, shot: Shot, force: boolean): boolean {
