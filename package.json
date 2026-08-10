@@ -27,5 +27,13 @@
     "grok",
     "codex",
     "agents"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pablo-dev-uni/reel-video.git"
+  },
+  "homepage": "https://github.com/Pablo-dev-uni/reel-video#readme",
+  "bugs": {
+    "url": "https://github.com/Pablo-dev-uni/reel-video/issues"
+  }
 }

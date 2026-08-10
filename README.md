@@ -124,7 +124,7 @@ One-time setup on your machine. After that, open the repo in your agent and talk
 ### 1. Install Reel Video
 
 ```bash
-git clone https://github.com/AsadMoulviDev/reel-video.git
+git clone https://github.com/Pablo-dev-uni/reel-video.git
 cd reel-video
 npm install
 ```
