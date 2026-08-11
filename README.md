@@ -83,21 +83,49 @@ If you want a chat box that returns one mystery clip, this is not that product. 
 ## How does Reel Video work?
 
 ```text
-Storyboard (one multi-panel still)
-   └── Scene (~6 second beat)
-         ├── first frame
-         ├── middle frame
-         ├── last frame
-         └── video   (Grok reference_to_video on those three stills)
+Character lock  (cast bible)   ─┐
+Location lock   (set bible)    ─┴─ generate these first
+   └── Scene (~6 or 10 second beat)
+         ├── strip            ONE 3-panel still, refs both locks
+         ├── first/mid/last   crops of the strip (ffmpeg, no model call)
+         └── video            Grok reference_to_video on those three crops
 ```
 
-1. The agent creates a **storyboard** image (full plot, style, characters).
+1. The agent generates a **character lock** and a **location lock**. These are the visual bible.
 2. The agent adds **scenes**. Each scene is one short chapter of the story.
-3. Each scene gets **three full-frame stills** locked to the board.
-4. Grok turns those stills into a **6s or 10s** video.
-5. Longer stories use more scenes, not longer single clips.
+3. Each scene generates **one 3-panel strip** that references both locks.
+4. The strip is **auto-sliced** into first / middle / last frames. No extra model call.
+5. Grok turns those three frames into a **6s or 10s** video.
+6. Longer stories use more scenes, not longer single clips.
 
 Media lands in `canvas/assets/`. State lives in `canvas/project.json`. Both stay local.
+
+### The locks come first
+
+Every scene frame references both locks, which is what keeps the cast and the set
+from drifting between shots.
+
+<p align="center">
+  <img src="docs/images/style-locks.png" alt="Style locks panel: a character bible of banana soldiers and a location bible of an empty war camp" width="900" />
+</p>
+
+### One strip becomes three frames and a video
+
+The strip is the only model call in a scene. The three frames below it are ffmpeg
+crops of that same image, so they cost nothing and cannot drift from each other.
+
+<p align="center">
+  <img src="docs/images/scene-card.png" alt="Scene card showing a 3-panel strip, its three auto-cropped frames, and the generated video" width="900" />
+</p>
+
+### Scenes stitch into one short
+
+`canvas stitch` joins finished scene videos in scene order with local ffmpeg.
+Audio survives the join.
+
+<p align="center">
+  <img src="docs/images/export.png" alt="Full short panel stitching three scene videos into a single MP4" width="900" />
+</p>
 
 ---
 
@@ -210,10 +238,17 @@ and it was in the fridge the whole time
 ### What you do
 
 1. Review prompts in the browser  
-2. Generate in order: storyboard → scene frames → scene video  
+2. Generate in order: locks → scene strip → scene video  
 3. Ask the agent for the next scene when the look is right  
 
 Preferred loop: **agent scaffolds, human generates in the UI.** Only run full `canvas run` when you ask the agent to.
+
+Run `canvas serve` and you get the review board. Every prompt is editable in place,
+and each card has its own Generate button, so nothing is spent until you click it.
+
+<p align="center">
+  <img src="docs/images/ui-full.png" alt="Reel Video review board showing status bar, style locks, and the start of a scene" width="900" />
+</p>
 
 ---
 
