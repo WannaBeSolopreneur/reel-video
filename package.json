@@ -1,7 +1,7 @@
 {
   "name": "reel-video",
-  "version": "0.1.0",
-  "description": "Reel Video \u2014 agent-operated canvas for short videos with Grok Build and Codex",
+  "version": "0.1.1",
+  "description": "Reel Video — agent-operated canvas for short videos with Grok Build and Codex",
   "license": "MIT",
   "author": "WannaBeSolopreneur",
   "type": "module",

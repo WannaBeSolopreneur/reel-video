@@ -52,18 +52,27 @@ jobs:
       - name: Pack
         run: npm pack
 
-      - name: Install tarball in a clean directory
-        run: |
-          mkdir -p /tmp/installtest
-          cd /tmp/installtest
-          npm init -y
-          npm install "$GITHUB_WORKSPACE"/reel-video-*.tgz
+      - name: Install tarball globally
+        run: npm install -g "$GITHUB_WORKSPACE"/reel-video-*.tgz
 
+      # Run from a directory with NO node_modules. The bin spawns tsx, and a
+      # bare `--import tsx` resolves from process.cwd() — so installing the
+      # tarball into the same directory you then run from hides the bug that
+      # broke `npx reel-video` in 0.1.0. This must run somewhere empty.
       # --skip-checks keeps this job about packaging, not about whether the
       # runner image ships ffmpeg. Preflight itself is covered by unit tests.
-      - name: CLI runs without the repo present
+      - name: CLI runs from an empty directory
         run: |
-          cd /tmp/installtest
-          ./node_modules/.bin/reel-video --help
-          ./node_modules/.bin/reel-video init "ci smoke test" --skip-checks
+          mkdir -p /tmp/emptydir
+          cd /tmp/emptydir
+          test ! -d node_modules
+          reel-video --help
+          reel-video init "ci smoke test" --skip-checks
+          test -f canvas/project.json
+
+      - name: CLI also works via npx from the tarball
+        run: |
+          mkdir -p /tmp/npxdir
+          cd /tmp/npxdir
+          npx --yes "$GITHUB_WORKSPACE"/reel-video-*.tgz init "npx smoke test" --skip-checks
           test -f canvas/project.json
