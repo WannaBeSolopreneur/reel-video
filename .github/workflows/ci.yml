@@ -70,9 +70,12 @@ jobs:
           reel-video init "ci smoke test" --skip-checks
           test -f canvas/project.json
 
+      # `npx <file>.tgz` tries to EXECUTE the tarball (exit 126). The tarball has
+      # to be passed as the package to install, with the bin named separately.
       - name: CLI also works via npx from the tarball
         run: |
           mkdir -p /tmp/npxdir
           cd /tmp/npxdir
-          npx --yes "$GITHUB_WORKSPACE"/reel-video-*.tgz init "npx smoke test" --skip-checks
+          TARBALL=$(ls "$GITHUB_WORKSPACE"/reel-video-*.tgz)
+          npx --yes --package="$TARBALL" reel-video init "npx smoke test" --skip-checks
           test -f canvas/project.json
