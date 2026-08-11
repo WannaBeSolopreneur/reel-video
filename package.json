@@ -3,22 +3,36 @@
   "version": "0.1.0",
   "description": "Reel Video \u2014 agent-operated canvas for short videos with Grok Build and Codex",
   "license": "MIT",
+  "author": "WannaBeSolopreneur",
   "type": "module",
   "bin": {
+    "reel-video": "./bin/canvas.js",
     "canvas": "./bin/canvas.js"
   },
   "engines": {
     "node": ">=20"
   },
+  "files": [
+    "bin",
+    "src",
+    "docs/zdr.md",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "canvas": "node --import tsx src/cli.ts",
     "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "tsx": "^4.19.0"
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "ai",

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ["20", "22"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+  package:
+    name: package installs clean
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      # bin/canvas.js runs the CLI through tsx at runtime, so tsx must be a real
+      # dependency. Installing the tarball outside the repo is the only thing
+      # that actually proves it.
+      - name: Pack
+        run: npm pack
+
+      - name: Install tarball in a clean directory
+        run: |
+          mkdir -p /tmp/installtest
+          cd /tmp/installtest
+          npm init -y
+          npm install "$GITHUB_WORKSPACE"/reel-video-*.tgz
+
+      # --skip-checks keeps this job about packaging, not about whether the
+      # runner image ships ffmpeg. Preflight itself is covered by unit tests.
+      - name: CLI runs without the repo present
+        run: |
+          cd /tmp/installtest
+          ./node_modules/.bin/reel-video --help
+          ./node_modules/.bin/reel-video init "ci smoke test" --skip-checks
+          test -f canvas/project.json

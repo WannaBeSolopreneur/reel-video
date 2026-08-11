@@ -21,11 +21,11 @@ No new subscription. No second token bill. Files stay on your machine.
 </p>
 
 <p align="center">
-  <img alt="license" src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" />
-  <img alt="node" src="https://img.shields.io/badge/node-%3E%3D20-green.svg?style=flat-square" />
-  <img alt="agents" src="https://img.shields.io/badge/for-coding%20agents-111.svg?style=flat-square" />
-  <img alt="grok" src="https://img.shields.io/badge/Grok%20Build-images%20%2B%20video-111.svg?style=flat-square" />
-  <img alt="codex" src="https://img.shields.io/badge/Codex-optional%20stills-6b6.svg?style=flat-square" />
+  <a href="https://github.com/WannaBeSolopreneur/reel-video/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/WannaBeSolopreneur/reel-video/ci.yml?branch=main&style=flat-square&label=CI" /></a>
+  <a href="https://www.npmjs.com/package/reel-video"><img alt="npm" src="https://img.shields.io/npm/v/reel-video?style=flat-square" /></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/WannaBeSolopreneur/reel-video?style=flat-square" /></a>
+  <img alt="node" src="https://img.shields.io/node/v/reel-video?style=flat-square" />
+  <a href="https://github.com/WannaBeSolopreneur/reel-video/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/WannaBeSolopreneur/reel-video?style=flat-square" /></a>
 </p>
 
 ---
@@ -152,12 +152,39 @@ One-time setup on your machine. After that, open the repo in your agent and talk
 ### 1. Install Reel Video
 
 ```bash
+npx reel-video init "my short"
+```
+
+That is the whole install. To hack on Reel Video itself, clone it instead:
+
+```bash
 git clone https://github.com/WannaBeSolopreneur/reel-video.git
 cd reel-video
 npm install
 ```
 
-Requirements: **Node 20+**, optional [Grok Build](https://grok.x.ai/) CLI for `grok login` (or set `XAI_API_KEY`), optional [Codex](https://openai.com/codex) CLI.
+#### Requirements
+
+| Requirement | Why | Required? |
+|---|---|---|
+| **Node 20+** | Runtime | Yes |
+| **ffmpeg** (with `ffprobe`) | Slices the scene strip into frames, and joins scenes in `canvas stitch` | Yes |
+| [Grok Build](https://grok.x.ai/) CLI | `grok login` for images + video (or set `XAI_API_KEY`) | For generating |
+| [Codex](https://openai.com/codex) CLI | Optional alternate stills provider | No |
+
+**ffmpeg is not optional.** Scene frames are ffmpeg crops of the scene strip, so
+without it a scene cannot produce frames or video. `canvas init` checks for it and
+stops if it is missing.
+
+```bash
+brew install ffmpeg                  # macOS
+sudo apt install ffmpeg              # Debian / Ubuntu
+sudo dnf install ffmpeg              # Fedora
+winget install Gyan.FFmpeg           # Windows
+```
+
+On macOS without ffmpeg, Reel Video falls back to `sips` for crops — frames work,
+but `canvas stitch` does not.
 
 ### 2. Log in once
 
@@ -256,25 +283,36 @@ and each card has its own Generate button, so nothing is spent until you click i
 
 You usually do not type these. Your agent does.
 
+Installed from npm, the command is `reel-video` (or the shorter `canvas` alias):
+
 ```bash
-npm run canvas -- init "my short"
-npm run canvas -- serve
+reel-video init "my short"
+reel-video serve
 
-npm run canvas -- add image --provider codex --aspect 16:9 --id img-1 \
-  --prompt "ONE single image: 8-panel storyboard … same character … NO text"
-npm run canvas -- storyboard set img-1
-npm run canvas -- scene add --name "Opening" --panels 1-4 --provider codex --duration 6
+# 1. the visual bible — both locks first
+reel-video add image --role character --provider grok --aspect 16:9 --id char-lock \
+  --prompt "ONE image: character bible, cast lineup, consistent design … NO text"
+reel-video add image --role location --provider grok --aspect 16:9 --id loc-lock \
+  --prompt "ONE image: location bible, empty establishing set … NO text"
 
-npm run canvas -- status
+# 2. scenes reference both locks
+reel-video scene add --name "The Clash" --duration 10 --provider grok
+
+reel-video status
+reel-video stitch
 ```
+
+Working from a clone instead, prefix with `npm run canvas --` (for example
+`npm run canvas -- init "my short"`).
 
 | Command | Purpose |
 |---|---|
-| `canvas init [name]` | Create `canvas/project.json` |
+| `canvas init [name]` | Create `canvas/project.json` (checks for ffmpeg) |
 | `canvas serve` | Open the local review UI |
-| `canvas storyboard set <id>` | Mark the master board |
-| `canvas scene add --name …` | Scaffold first / mid / last + video |
+| `canvas lock character\|location <id>` | Mark the cast / set bible |
+| `canvas scene add --name …` | Scaffold strip + 3 crops + video |
 | `canvas add image` / `add video` | Free shots |
+| `canvas stitch` | Join ready scene videos into one MP4 |
 | `canvas set` / `rm` / `run` / `status` | Edit, remove, generate, inspect |
 
 Add `--json` for machine-readable output. Exit codes: `0` success, `1` failure, `2` usage error.

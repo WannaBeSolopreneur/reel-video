@@ -23,6 +23,7 @@ import {
   shotHash,
   updateShot,
 } from "./project.ts";
+import { checkMediaTools, describeMediaTools } from "./preflight.ts";
 import { runProject, type RunEvent } from "./runner.ts";
 import { serve } from "./server.ts";
 import { stitchScenes } from "./stitch.ts";
@@ -229,13 +230,27 @@ async function main(argv: string[]): Promise<number> {
   loadDotEnv(resolve(process.cwd(), ".env"));
   const command = args.positional[0];
 
-  if (!command || command === "help" || bool(args, "help")) {
+  // Explicitly asking for help is success. A bare invocation with no command
+  // is a usage error, and keeps exit code 2.
+  const askedForHelp = command === "help" || bool(args, "help");
+  if (!command || askedForHelp) {
     console.log(HELP);
-    return command ? 0 : 2;
+    return askedForHelp ? 0 : 2;
   }
 
   switch (command) {
     case "init": {
+      if (!bool(args, "skip-checks")) {
+        const tools = await checkMediaTools();
+        const notice = describeMediaTools(tools);
+        if (notice && !tools.canCrop) {
+          console.error("");
+          console.error(notice);
+          console.error("");
+          return 1;
+        }
+        if (notice && !json) console.log(`${notice}\n`);
+      }
       const project = await initProject(root, args.positional[1]);
       if (json) console.log(JSON.stringify({ ok: true, project }, null, 2));
       else {
