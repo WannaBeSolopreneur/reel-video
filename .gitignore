@@ -6,3 +6,5 @@ node_modules/
 
 # Local canvas workspace (run `canvas init` after clone)
 canvas/
+.gstack/
+*.tgz
