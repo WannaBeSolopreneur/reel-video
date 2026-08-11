@@ -1,0 +1,67 @@
+name: Release
+
+# Publishes to npm via trusted publishing (OIDC). No NPM_TOKEN secret is
+# stored anywhere — GitHub mints a short-lived identity token and npm verifies
+# it came from this repo and this workflow file.
+#
+# One-time npm setup (after the package exists on the registry):
+#   npmjs.com → reel-video → Settings → Trusted Publisher
+#     Organization or user: WannaBeSolopreneur
+#     Repository:           reel-video
+#     Workflow filename:    release.yml
+#     Allowed actions:      npm publish
+#
+# Release by tagging:
+#   npm version patch    # or minor / major — commits and tags
+#   git push --follow-tags
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # Required so GitHub can mint the OIDC token npm checks.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node 22.14+ and npm 11.5.1+.
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Use an npm that supports trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Verify the tag matches package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG" >&2
+            exit 1
+          fi
+          echo "Publishing version $PKG"
+        if: startsWith(github.ref, 'refs/tags/v')
+
+      # Provenance is generated automatically for trusted publishing on a
+      # public repo publishing a public package. No --provenance flag needed.
+      - name: Publish
+        run: npm publish
