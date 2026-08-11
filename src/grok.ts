@@ -406,8 +406,10 @@ export async function animateImage(input: AnimateInput): Promise<GrokRunResult> 
       `Fill the FULL ${duration}s — do not rush the action into the opening seconds; leave room for anticipation, peak, and aftermath.`,
       "Morph smoothly between stills; stills lock identity and set — do not redesign people, wardrobe, faces, or location.",
       "Prioritize clear physical ACTION: hands, body mechanics, prop contact, facial reaction, weight shifts, holds, follow-through.",
-      "Camera stays motivated and secondary to the action. No on-screen text, no new characters.",
-      `Director action brief (already timed for ${duration}s if ranges are given — honor them): ${input.prompt}`,
+      "Camera stays motivated and secondary to the action. No new characters.",
+      "NO on-screen text means no captions, subtitles, or titles burned into frame — it does NOT mean silence.",
+      "AUDIO: generate a full soundtrack. If the brief specifies narration, dialogue, or spoken lines, SPEAK them aloud as real voice-over/character dialogue, lip-synced to the named character, in the order and timing given. Also render the requested score, sound effects, and ambience.",
+      `Director brief (already timed for ${duration}s if ranges are given — honor every action AND audio instruction): ${input.prompt}`,
     ].join(" ");
 
     const body: Record<string, unknown> = {
