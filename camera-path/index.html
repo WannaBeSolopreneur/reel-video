@@ -33,6 +33,13 @@
         Normalize longest side to
         <span class="inline"><input type="number" id="normalize-size" value="12" min="0.1" step="0.5" /> units</span>
       </label>
+      <label class="field">Up axis
+        <select id="normalize-up">
+          <option value="auto">Auto-detect</option>
+          <option value="y">Y-up (glTF default)</option>
+          <option value="z">Z-up (lay the plan flat)</option>
+        </select>
+      </label>
       <label class="field">Fit
         <select id="normalize-fit">
           <option value="horizontal">Longest floor side (interiors)</option>

@@ -33,10 +33,31 @@ export function loadGLBFromFile(file) {
  * Centre, floor and rescale `root` in place.
  * Returns the measurements so the UI can report what it did.
  */
-export function normalizeModel(root, { targetSize = 12, enabled = true, fit = "horizontal" } = {}) {
+/**
+ * Which axis the model was authored around. glTF is Y-up by convention, but
+ * plenty of exports (CAD, Blender scenes built Z-up) arrive with the floor plan
+ * standing on its edge. The thinnest dimension gives it away: a building is
+ * always flattest along its own up axis.
+ */
+export function detectUpAxis(size) {
+  const min = Math.min(size.x, size.y, size.z);
+  if (min === size.z && size.z < size.x && size.z < size.y) return "z";
+  return "y";
+}
+
+export function normalizeModel(root, { targetSize = 12, enabled = true, fit = "horizontal", upAxis = "auto" } = {}) {
+  root.rotation.set(0, 0, 0);
   root.position.set(0, 0, 0);
   root.scale.setScalar(1);
   root.updateMatrixWorld(true);
+
+  const authored = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+  const up = upAxis === "auto" ? detectUpAxis(authored) : upAxis;
+  if (up === "z") {
+    // Lay the plan flat: Z-up becomes Y-up.
+    root.rotation.x = -Math.PI / 2;
+    root.updateMatrixWorld(true);
+  }
 
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
@@ -72,6 +93,7 @@ export function normalizeModel(root, { targetSize = 12, enabled = true, fit = "h
 
   return {
     scale,
+    upAxis: up,
     rawSize: size,
     size: finalSize,
     box: finalBox,

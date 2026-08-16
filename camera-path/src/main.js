@@ -91,8 +91,8 @@ function installModel(root, name) {
   viewer.scene.add(model);
   applyNormalize(true);
 
-  // A model taller than it is wide is something to orbit, not walk through;
-  // scaling its floor plan to room size would inflate it absurdly.
+  // Still taller than wide after the up-axis fix means this really is an object
+  // to orbit, not an interior; scaling its floor plan would inflate it absurdly.
   if (modelStats.objectLike && ui.el.normalizeFit.value === "horizontal") {
     ui.el.normalizeFit.value = "overall";
     applyNormalize(true);
@@ -113,7 +113,7 @@ function applyNormalize(frameCamera = false) {
   ui.setModelInfo(
     `${model.name} — ${s.x.toFixed(2)} × ${s.y.toFixed(2)} × ${s.z.toFixed(2)} units ` +
       `(raw ${raw.x.toFixed(2)} × ${raw.y.toFixed(2)} × ${raw.z.toFixed(2)}, scaled ×${modelStats.scale.toFixed(4)}). ` +
-      `Floor at Y=0, eye height ${EYE_HEIGHT}.` +
+      `${modelStats.upAxis === "z" ? "Z-up, laid flat. " : ""}Floor at Y=0, eye height ${EYE_HEIGHT}.` +
       (modelStats.objectLike ? " Taller than wide — orbit it rather than walking through it." : ""),
   );
 }
@@ -273,9 +273,13 @@ function record() {
   viewer.setRenderSize(size);
   pathView.setVisible(false);
 
-  // Let the renderer produce one frame at the new size before capturing,
-  // so the stream starts with the right dimensions.
-  requestAnimationFrame(() => {
+  // Pose the camera on the first keyframe *before* capture opens, otherwise
+  // frame 0 of the video is whatever the editor happened to be looking at.
+  controller.seek(0);
+
+  // Two frames: one to render at the new size, one to be sure the posed frame
+  // is on the canvas before the stream starts reading it.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     try {
       recording = startRecording(canvas, { fps: 60, bitrateMbps: ui.bitrate });
     } catch (err) {
@@ -287,7 +291,7 @@ function record() {
     ui.setRecording(true);
     ui.setStatus(`Recording ${size ? `${size.width}×${size.height}` : "viewport"} for ${path.duration}s…`);
     preview();
-  });
+  }));
 }
 
 async function finishRecording() {
@@ -296,6 +300,9 @@ async function finishRecording() {
   ui.setRecording(false);
   try {
     const blob = await rec.stop();
+    // Kept so the recording can be retrieved from the console if the browser's
+    // download handling gets in the way (automation profiles, blocked saves).
+    window.lastRecording = blob;
     downloadBlob(blob, `camera-shot-${stamp()}.webm`);
     ui.setStatus(`Saved ${(blob.size / 1e6).toFixed(1)} MB WebM.`);
   } catch (err) {
@@ -326,6 +333,14 @@ loadGLB("./models/apartment.glb")
     /* no default model — the drop hint stays up */
   });
 
-// Expose the path for console-driven scripting / debugging.
+// Expose the working parts for console-driven scripting / debugging.
 window.cameraPath = path;
+window.cameraController = controller;
+// Call after mutating cameraPath from the console so the list, timeline and
+// button states catch up with the data.
+window.refreshUI = () => {
+  ui.syncSettings(path);
+  refresh();
+};
+window.viewer = viewer;
 window.THREE = THREE;

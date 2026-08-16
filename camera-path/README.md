@@ -104,7 +104,10 @@ reproducible shots as you like — living→dining→kitchen, a kitchen orbit, a
 vertical social cut — without touching the model again. `easing` is optional and
 defaults to `linear`. Drop a `.json` on the viewport to import it.
 
-See `examples/living-dining-kitchen.json` for the walkthrough from the spec.
+`examples/living-to-kitchen.json` is a real 30 s walkthrough measured against
+the sample apartment: three 1.2 m segments at eye height, with a 25° yaw onto
+the kitchen in the final one. Import it to see the position/target split doing
+its job.
 
 ## Recording
 
