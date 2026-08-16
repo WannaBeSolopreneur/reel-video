@@ -79,6 +79,13 @@ side scaled to the target size (default 12 units). After that 1 unit = 1 m by
 construction and eye height 1.6 means what it says. Uncheck **Center &
 normalize** to keep the authored transform.
 
+**Fit** picks which side gets scaled. *Longest floor side* is right for an
+interior you walk through — the floor plan sets the scale. *Longest side
+overall* is right for an object you orbit, where height may be the biggest
+dimension; scaling such a model by its floor plan would inflate it. A model
+taller than it is wide is detected on load and switched to *overall*
+automatically, and the panel says so.
+
 ## JSON format
 
 ```json

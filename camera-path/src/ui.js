@@ -10,6 +10,7 @@ export function createUI(handlers) {
     loadGlb: $("load-glb"),
     glbInput: $("glb-input"),
     normalizeSize: $("normalize-size"),
+    normalizeFit: $("normalize-fit"),
     normalizeEnabled: $("normalize-enabled"),
     eyeHeight: $("eye-height"),
     modelInfo: $("model-info"),
@@ -51,6 +52,7 @@ export function createUI(handlers) {
   };
 
   el.normalizeSize.onchange = () => handlers.renormalize();
+  el.normalizeFit.onchange = () => handlers.renormalize();
   el.normalizeEnabled.onchange = () => handlers.renormalize();
   el.eyeHeight.onclick = () => handlers.eyeHeight();
 
@@ -117,6 +119,7 @@ export function createUI(handlers) {
       return {
         targetSize: Number(el.normalizeSize.value) || 12,
         enabled: el.normalizeEnabled.checked,
+        fit: el.normalizeFit.value,
       };
     },
 

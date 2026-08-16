@@ -90,6 +90,13 @@ function installModel(root, name) {
   model.name = name;
   viewer.scene.add(model);
   applyNormalize(true);
+
+  // A model taller than it is wide is something to orbit, not walk through;
+  // scaling its floor plan to room size would inflate it absurdly.
+  if (modelStats.objectLike && ui.el.normalizeFit.value === "horizontal") {
+    ui.el.normalizeFit.value = "overall";
+    applyNormalize(true);
+  }
   ui.setDropHintVisible(false);
 }
 
@@ -102,9 +109,12 @@ function applyNormalize(frameCamera = false) {
   if (frameCamera) controller.frame(modelStats.box);
 
   const s = modelStats.size;
+  const raw = modelStats.rawSize;
   ui.setModelInfo(
     `${model.name} — ${s.x.toFixed(2)} × ${s.y.toFixed(2)} × ${s.z.toFixed(2)} units ` +
-      `(scaled ×${modelStats.scale.toFixed(4)}). Floor at Y=0, eye height ${EYE_HEIGHT}.`,
+      `(raw ${raw.x.toFixed(2)} × ${raw.y.toFixed(2)} × ${raw.z.toFixed(2)}, scaled ×${modelStats.scale.toFixed(4)}). ` +
+      `Floor at Y=0, eye height ${EYE_HEIGHT}.` +
+      (modelStats.objectLike ? " Taller than wide — orbit it rather than walking through it." : ""),
   );
 }
 

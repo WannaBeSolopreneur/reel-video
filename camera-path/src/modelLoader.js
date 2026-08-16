@@ -33,7 +33,7 @@ export function loadGLBFromFile(file) {
  * Centre, floor and rescale `root` in place.
  * Returns the measurements so the UI can report what it did.
  */
-export function normalizeModel(root, { targetSize = 12, enabled = true } = {}) {
+export function normalizeModel(root, { targetSize = 12, enabled = true, fit = "horizontal" } = {}) {
   root.position.set(0, 0, 0);
   root.scale.setScalar(1);
   root.updateMatrixWorld(true);
@@ -41,7 +41,11 @@ export function normalizeModel(root, { targetSize = 12, enabled = true } = {}) {
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
-  const rawLongest = Math.max(size.x, size.z) || Math.max(size.x, size.y, size.z) || 1;
+  // "horizontal" suits a room you walk through: its floor plan sets the scale.
+  // "overall" suits an object you orbit, where height may be the largest side.
+  const horizontal = Math.max(size.x, size.z);
+  const overall = Math.max(size.x, size.y, size.z);
+  const rawLongest = (fit === "overall" ? overall : horizontal) || overall || 1;
 
   const scale = enabled ? targetSize / rawLongest : 1;
   root.scale.setScalar(scale);
@@ -72,5 +76,7 @@ export function normalizeModel(root, { targetSize = 12, enabled = true } = {}) {
     size: finalSize,
     box: finalBox,
     radius: finalSize.length() / 2,
+    // Taller than it is wide means this is something to orbit, not walk through.
+    objectLike: size.y > horizontal,
   };
 }

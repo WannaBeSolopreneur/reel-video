@@ -33,6 +33,12 @@
         Normalize longest side to
         <span class="inline"><input type="number" id="normalize-size" value="12" min="0.1" step="0.5" /> units</span>
       </label>
+      <label class="field">Fit
+        <select id="normalize-fit">
+          <option value="horizontal">Longest floor side (interiors)</option>
+          <option value="overall">Longest side overall (objects)</option>
+        </select>
+      </label>
       <label class="checkbox"><input type="checkbox" id="normalize-enabled" checked /> Center &amp; normalize (floor at Y=0)</label>
       <div class="row">
         <button id="eye-height">Drop to eye height (1.6)</button>
