@@ -21,7 +21,8 @@
   ],
   "scripts": {
     "canvas": "node --import tsx src/cli.ts",
-    "test": "node --import tsx --test test/*.test.ts",
+    "camera-path": "node camera-path/serve.js",
+    "test": "node --import tsx --test test/*.test.ts test/*.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "three": "^0.185.1",
     "typescript": "^5.8.3"
   },
   "publishConfig": {

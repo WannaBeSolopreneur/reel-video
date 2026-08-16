@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Camera Path Editor</title>
+<link rel="stylesheet" href="./style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.185.1/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="viewport">
+    <canvas id="scene"></canvas>
+    <div id="drop-hint">Drop a <code>.glb</code> here (or click Load GLB)</div>
+  </div>
+
+  <aside id="panel">
+    <h1>Camera Path</h1>
+
+    <section>
+      <h2>Model</h2>
+      <div class="row">
+        <button id="load-glb">Load GLB</button>
+        <input type="file" id="glb-input" accept=".glb,.gltf" hidden />
+      </div>
+      <label class="field">
+        Normalize longest side to
+        <span class="inline"><input type="number" id="normalize-size" value="12" min="0.1" step="0.5" /> units</span>
+      </label>
+      <label class="checkbox"><input type="checkbox" id="normalize-enabled" checked /> Center &amp; normalize (floor at Y=0)</label>
+      <div class="row">
+        <button id="eye-height">Drop to eye height (1.6)</button>
+      </div>
+      <p class="note" id="model-info">No model loaded.</p>
+    </section>
+
+    <section>
+      <h2>Keyframes</h2>
+      <div class="row">
+        <button id="add-kf" class="primary">Add Keyframe</button>
+        <button id="update-kf">Update</button>
+        <button id="delete-kf">Delete</button>
+      </div>
+      <div class="row">
+        <button id="prev-kf">&#9664; Previous</button>
+        <button id="next-kf">Next &#9654;</button>
+        <button id="goto-kf">Go to</button>
+      </div>
+      <div id="timeline"></div>
+      <ul id="kf-list"></ul>
+      <p class="note">Position and look-target are stored separately: the target is the orbit pivot. Orbit/pan to frame the shot, then Add Keyframe.</p>
+    </section>
+
+    <section>
+      <h2>Playback</h2>
+      <label class="field">Duration <span class="inline"><input type="number" id="duration" value="30" min="0.5" step="0.5" /> sec</span></label>
+      <label class="field">Easing
+        <select id="easing">
+          <option value="linear">Linear (constant, exact)</option>
+          <option value="smoothstep">Smoothstep per segment</option>
+          <option value="global">Ease in/out whole shot</option>
+        </select>
+      </label>
+      <label class="checkbox"><input type="checkbox" id="show-path" checked /> Show path in scene</label>
+      <div class="row">
+        <button id="preview" class="primary">Preview Path</button>
+        <button id="stop">Stop</button>
+      </div>
+      <input type="range" id="scrub" min="0" max="1" step="0.0005" value="0" />
+      <p class="note" id="playhead">t = 0.00s</p>
+    </section>
+
+    <section>
+      <h2>Export</h2>
+      <div class="row">
+        <button id="export-json">Export Camera JSON</button>
+        <button id="import-json">Import JSON</button>
+        <input type="file" id="json-input" accept="application/json,.json" hidden />
+      </div>
+      <label class="field">Record size
+        <select id="rec-size">
+          <option value="1920x1080">1920&times;1080 (16:9)</option>
+          <option value="1280x720">1280&times;720 (16:9)</option>
+          <option value="1080x1920">1080&times;1920 (9:16 vertical)</option>
+          <option value="1080x1080">1080&times;1080 (1:1)</option>
+          <option value="viewport">Current viewport</option>
+        </select>
+      </label>
+      <label class="field">Bitrate <span class="inline"><input type="number" id="rec-bitrate" value="16" min="1" step="1" /> Mbps</span></label>
+      <div class="row">
+        <button id="record" class="primary">Record Video</button>
+      </div>
+      <p class="note" id="rec-status">Records the rendered canvas to WebM.</p>
+    </section>
+  </aside>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

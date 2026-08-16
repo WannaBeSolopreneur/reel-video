@@ -1,0 +1,6 @@
+# Drop apartment.glb here and the editor loads it on startup.
+# Models are large binaries; keep them out of git.
+*.glb
+*.gltf
+*.bin
+!.gitignore
